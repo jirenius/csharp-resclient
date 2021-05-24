@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>netstandard1.6;netstandard2.0;net45</TargetFrameworks>
+    <PackageId>ResgateIO.Client</PackageId>
+    <Version>0.1.0</Version>
+    <Title>RES Client .NET library</Title>
+    <Authors>Samuel Jirenius</Authors>
+    <Owners>Samuel Jirenius</Owners>
+    <Company>Resgate.io</Company>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://resgate.io/</PackageProjectUrl>
+    <Description>RES client library for building realtime APIs with synchronized clients using Resgate.</Description>
+    <Copyright>Copyright 2019 Samuel Jirenius</Copyright>
+    <RepositoryType>git</RepositoryType>
+    <RepositoryUrl>https://github.com/jirenius/csharp-resclient</RepositoryUrl>
+    <PackageIcon>icon.png</PackageIcon>
+    <PackageTags>Resgate;API;Realtime;REST;NATS</PackageTags>
+    <IncludeSymbols>true</IncludeSymbols>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <NoWarn>1572,1573,1591</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="images\icon.png" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+</Project>
