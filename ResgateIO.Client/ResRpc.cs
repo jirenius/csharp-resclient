@@ -46,7 +46,7 @@ namespace ResgateIO.Client
         {
             try
             {
-               var msg = Encoding.UTF8.GetString(e.Message);
+                var msg = Encoding.UTF8.GetString(e.Message);
                 var rpcmsg = JsonConvert.DeserializeObject<MessageDto>(msg);
 
                 if (rpcmsg.Id != null)
