@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace ResgateIO.Client.UnitTests
 {
-    class MockWebSocket : IWebSocket
+    public class MockWebSocket : IWebSocket
     {
         public event EventHandler<MessageEventArgs> OnMessage;
 
@@ -19,7 +19,6 @@ namespace ResgateIO.Client.UnitTests
 
         public void Dispose()
         {
-            throw new NotImplementedException();
         }
 
         public Task SendAsync(byte[] data)
@@ -47,6 +46,11 @@ namespace ResgateIO.Client.UnitTests
 
             tcs = awaiters.Dequeue();
             tcs.SetResult(request);
+            return Task.CompletedTask;
+        }
+
+        public Task DisconnectAsync()
+        {
             return Task.CompletedTask;
         }
 

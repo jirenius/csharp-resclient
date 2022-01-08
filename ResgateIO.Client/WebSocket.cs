@@ -114,6 +114,9 @@ namespace ResgateIO.Client
             }
         }
 
-        public void Dispose() => DisconnectAsync().Wait();
+        public void Dispose()
+        {
+            DisconnectAsync().Wait();
+        }
     }
 }

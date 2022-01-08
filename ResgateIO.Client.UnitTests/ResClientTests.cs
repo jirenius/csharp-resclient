@@ -1,11 +1,15 @@
+using Newtonsoft.Json.Linq;
 using System;
 using System.Threading.Tasks;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace ResgateIO.Client.UnitTests
 {
-    public class ResClientTests
+    public class ResClientTests : TestsBase
     {
+        public ResClientTests(ITestOutputHelper output) : base(output) { }
+
         [Fact]
         public void ResClient_CreatesInstance()
         {
@@ -26,18 +30,43 @@ namespace ResgateIO.Client.UnitTests
         public async Task ConnectAsync_ConnectsToMockWebSocket()
         {
             var ws = new MockWebSocket();
+            var resgate = new MockResgate(ws);
             var client = new ResClient(() => Task.FromResult<IWebSocket>(ws));
-
+            
             var connectTask = client.ConnectAsync();
-
-            var req = await ws.GetRequestAsync();
-            req.SendResult(new
-            {
-                protocol = "1.2.2",
-            });
+            await resgate.HandshakeAsync("1.2.2");
             await connectTask;
 
             Assert.Equal("1.2.2", client.ResgateProtocol);
+        }
+
+        [Fact]
+        public async Task GetAsync_WithModelResponse_GetsModel()
+        {
+            await ConnectAndHandshake();
+
+            var creqTask = Client.GetAsync("test.model");
+            var req = await WebSocket.GetRequestAsync();
+            req.AssertMethod("subscribe.test.model");
+            req.SendResult(new JObject
+            {
+                { "models", new JObject
+                    {
+                        { "test.model", new JObject
+                            {
+                                { "foo", "bar" }
+                            }
+                        }
+                    }
+                }
+            });
+            var result = await creqTask;
+            Assert.Equal("test.model", result.ResourceID);
+            Assert.IsType<ResModel>(result);
+
+            var model = result as ResModel;
+            Assert.Contains("foo", model.Props.Keys);
+            Assert.Equal("bar", model.Props["foo"]);
         }
     }
 }

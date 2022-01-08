@@ -10,7 +10,8 @@ namespace ResgateIO.Client
     {
         event EventHandler<MessageEventArgs> OnMessage;
         Task SendAsync(byte[] data);
-        //Task CloseAsync(...);
+        
+        Task DisconnectAsync();
     }
 }
 

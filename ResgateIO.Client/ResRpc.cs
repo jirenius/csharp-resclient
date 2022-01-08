@@ -24,7 +24,7 @@ namespace ResgateIO.Client
         public JToken Result;
     }
 
-    class ResRpc
+    class ResRpc: IDisposable
     {
         public IWebSocket WebSocket { get { return ws; } }
 
@@ -34,6 +34,7 @@ namespace ResgateIO.Client
 
         private Dictionary<int, RpcRequest> requests = new Dictionary<int, RpcRequest>();
         private object requestLock = new object();
+        private bool disposedValue;
 
         public ResRpc(IWebSocket ws, JsonSerializerSettings serializerSettings)
         {
@@ -136,6 +137,24 @@ namespace ResgateIO.Client
             }
 
             throw new InvalidOperationException(String.Format("Invalid incoming request ID: {0}", id));
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!disposedValue)
+            {
+                if (disposing)
+                {
+                    ws.Dispose();
+                }
+                disposedValue = true;
+            }
+        }
+
+        public void Dispose()
+        {
+            Dispose(disposing: true);
+            GC.SuppressFinalize(this);
         }
     }
 }

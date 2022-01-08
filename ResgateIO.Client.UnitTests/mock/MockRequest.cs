@@ -3,10 +3,11 @@ using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using System.Text;
+using Xunit;
 
 namespace ResgateIO.Client.UnitTests
 {
-    class MockRequest
+    public class MockRequest
     {
         public readonly MockWebSocket WebSocket;
 
@@ -50,6 +51,19 @@ namespace ResgateIO.Client.UnitTests
             }));
 
             WebSocket.SendMessage(dta);
+        }
+
+        public MockRequest AssertMethod(string expectedMethod)
+        {
+            Assert.Equal(expectedMethod, Method);
+            return this;
+        }
+
+        public MockRequest AssertParams(object expectedParams)
+        {
+            JToken expected = JToken.FromObject(expectedParams);
+            Assert.True(JToken.DeepEquals(JToken.FromObject(expectedParams), Params), String.Format("Expected JSON: {0}\nActual JSON:   {1}", expected.ToString(), Params.ToString()));
+            return this;
         }
     }
 }
