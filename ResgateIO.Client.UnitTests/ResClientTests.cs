@@ -1,5 +1,6 @@
 using Newtonsoft.Json.Linq;
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
@@ -52,11 +53,7 @@ namespace ResgateIO.Client.UnitTests
             {
                 { "models", new JObject
                     {
-                        { "test.model", new JObject
-                            {
-                                { "foo", "bar" }
-                            }
-                        }
+                        { "test.model", new JObject { { "foo", "bar" } } }
                     }
                 }
             });
@@ -65,8 +62,31 @@ namespace ResgateIO.Client.UnitTests
             Assert.IsType<ResModel>(result);
 
             var model = result as ResModel;
-            Assert.Contains("foo", model.Props.Keys);
-            Assert.Equal("bar", model.Props["foo"]);
+            Test.AssertEqualJSON(new JObject { { "foo", "bar" } }, model.Props);
+        }
+
+        [Fact]
+        public async Task GetAsync_WithCollectionResponse_GetsCollection()
+        {
+            await ConnectAndHandshake();
+
+            var creqTask = Client.GetAsync("test.collection");
+            var req = await WebSocket.GetRequestAsync();
+            req.AssertMethod("subscribe.test.collection");
+            req.SendResult(new JObject
+            {
+                { "collections", new JObject
+                    {
+                        { "test.collection", new JArray { "foo", "bar" } }
+                    }
+                }
+            });
+            var result = await creqTask;
+            Assert.Equal("test.collection", result.ResourceID);
+            Assert.IsType<ResCollection>(result);
+
+            var collection = result as ResCollection;
+            Assert.Equal(new List<object> { "foo", "bar" }, collection.Values);
         }
     }
 }

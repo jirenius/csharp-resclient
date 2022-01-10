@@ -52,7 +52,11 @@ namespace ResgateIO.Client
 
         private void createResourceTypes()
         {
-             resourceTypes = new IResourceType[] { new ResourceTypeModel(this) };
+             resourceTypes = new IResourceType[]
+             {
+                 new ResourceTypeModel(this),
+                 new ResourceTypeCollection(this)
+             };
         }
 
         /// <summary>

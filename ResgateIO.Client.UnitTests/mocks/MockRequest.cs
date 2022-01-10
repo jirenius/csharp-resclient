@@ -61,8 +61,7 @@ namespace ResgateIO.Client.UnitTests
 
         public MockRequest AssertParams(object expectedParams)
         {
-            JToken expected = JToken.FromObject(expectedParams);
-            Assert.True(JToken.DeepEquals(JToken.FromObject(expectedParams), Params), String.Format("Expected JSON: {0}\nActual JSON:   {1}", expected.ToString(), Params.ToString()));
+            Test.AssertEqualJSON(expectedParams, Params);
             return this;
         }
     }

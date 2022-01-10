@@ -9,7 +9,7 @@ namespace ResgateIO.Client
     /// </summary>
     public class ResModel : ResResource
     {
-        public Dictionary<string, object> Props { get; private set; }
+        public IReadOnlyDictionary<string, object> Props { get; private set; }
 
         /// <summary>
         /// Initializes a new instance of the ResModel class.
@@ -17,11 +17,20 @@ namespace ResgateIO.Client
         public ResModel(string rid) : base(rid) {}
 
         /// <summary>
-        /// Initializes a the values of a ResModelclass.
+        /// Initializes the model with values.
         /// </summary>
         public void Init(Dictionary<string, object> props)
         {
             Props = props;
+        }
+
+        /// <summary>
+        /// Handles update events.
+        /// </summary>
+        /// <param name="newProps">New property values.</param>
+        public void HandleUpdate(IReadOnlyDictionary<string, object> newProps)
+        {
+            throw new NotImplementedException();
         }
     }
 }
