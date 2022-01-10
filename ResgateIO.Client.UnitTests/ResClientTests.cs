@@ -62,7 +62,7 @@ namespace ResgateIO.Client.UnitTests
             Assert.IsType<ResModel>(result);
 
             var model = result as ResModel;
-            Test.AssertEqualJSON(new JObject { { "foo", "bar" } }, model.Props);
+            Test.AssertEqualJSON(new JObject { { "foo", "bar" } }, model);
         }
 
         [Fact]
@@ -86,7 +86,60 @@ namespace ResgateIO.Client.UnitTests
             Assert.IsType<ResCollection>(result);
 
             var collection = result as ResCollection;
-            Assert.Equal(new List<object> { "foo", "bar" }, collection.Values);
+            Assert.Equal(new List<object> { "foo", "bar" }, collection);
+        }
+
+        [Fact]
+        public async Task GetAsync_CalledTwiceOnModel_GetsModelFromCache()
+        {
+            await ConnectAndHandshake();
+
+            var creqTask = Client.GetAsync("test.model");
+            var req = await WebSocket.GetRequestAsync();
+            req.AssertMethod("subscribe.test.model");
+            req.SendResult(new JObject { { "models", new JObject {
+                { "test.model", Test.Model }
+            } } });
+            var model1 = await creqTask as ResModel;
+            Test.AssertEqualJSON(Test.Model, model1);
+
+            var model2 = await Client.GetAsync("test.model") as ResModel;
+            Assert.Same(model1, model2);
+        }
+
+        [Fact]
+        public async Task GetAsync_CalledTwiceOnCollection_GetsCollectionFromCache()
+        {
+            await ConnectAndHandshake();
+
+            var creqTask = Client.GetAsync("test.collection");
+            var req = await WebSocket.GetRequestAsync();
+            req.AssertMethod("subscribe.test.collection");
+            req.SendResult(new JObject { { "collections", new JObject {
+                { "test.collection", Test.Collection }
+            } } });
+            var collection1 = await creqTask as ResCollection;
+            Test.AssertEqualJSON(Test.Collection, collection1);
+
+            var collection2 = await Client.GetAsync("test.collection") as ResCollection;
+            Assert.Same(collection1, collection2);
+        }
+
+        [Fact]
+        public async Task GetAsync_WithParentModel_GetsChildModel()
+        {
+            await ConnectAndHandshake();
+
+            var creqTask = Client.GetAsync("test.model.parent");
+            var req = await WebSocket.GetRequestAsync();
+            req.AssertMethod("subscribe.test.model.parent");
+            req.SendResult(new JObject { { "models", new JObject {
+                { "test.model.parent", Test.Resources["test.model.parent"] },
+                { "test.model", Test.Resources["test.model"] },
+            } } });
+            var parent = await creqTask as ResModel;
+            Assert.Equal("test.model.parent", parent.ResourceID);
+            Test.AssertEqualJSON(new JObject { { "ref", Test.Model } }, parent);
         }
     }
 }

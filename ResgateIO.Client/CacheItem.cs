@@ -60,8 +60,11 @@ namespace ResgateIO.Client
         public void SetResource(ResResource resource)
         {
             Resource = resource;
-            completionSource.SetResult(resource);
+        }
 
+        public void CompleteTask()
+        {
+            completionSource.TrySetResult(Resource);
         }
     }
 }

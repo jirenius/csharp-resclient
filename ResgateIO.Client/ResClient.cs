@@ -224,7 +224,22 @@ namespace ResgateIO.Client
                     IResourceType type = resourceTypes[i];
                     foreach (KeyValuePair<string, JToken> pair in sync)
                     {
-                        type.InitResource(itemCache[pair.Key].Resource, pair.Value);
+                        //type.InitResource(itemCache[pair.Key].Resource, pair.Value);
+                    }
+                }
+            }
+
+            // Complete all resource tasks
+            for (int i = 0; i < resourceTypes.Length; i++)
+            {
+                IResourceType type = resourceTypes[i];
+                JObject resources = typeResources[i];
+                if (resources != null)
+                {
+                    foreach (JProperty prop in resources.Properties())
+                    {
+                        string rid = prop.Name;
+                        itemCache[rid].CompleteTask();
                     }
                 }
             }
@@ -237,8 +252,8 @@ namespace ResgateIO.Client
             foreach (JProperty prop in resources.Properties())
             {
                 string rid = prop.Name;
-                var ci = itemCache[rid];
-                if (ci == null)
+                CacheItem ci = null;
+                if (!itemCache.TryGetValue(rid, out ci))
                 {
                     // If the resource is not cached since before, create a new cache item for it.
                     ci = new CacheItem(this, rid);
