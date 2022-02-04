@@ -39,7 +39,13 @@ namespace ResgateIO.Client
         /// </summary>
         /// <param name="resource">Resource.</param>
         /// <param name="data">Resource data.</param>
-        /// <returns>Resource of the given type.</returns>
         void InitResource(ResResource resource, JToken data);
+
+        /// <summary>
+        /// Synchronize a ResResource created with CreateResource.
+        /// </summary>
+        /// <param name="resource">Resource.</param>
+        /// <param name="data">Resource data.</param>
+        void SynchronizeResource(ResResource resource, JToken data);
     }
 }

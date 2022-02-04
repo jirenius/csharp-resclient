@@ -8,6 +8,11 @@ using System.Threading.Tasks;
 namespace ResgateIO.Client
 {
 
+    public class ResourceEventArgs : EventArgs
+    {
+        public string ResourceID { get; set; }
+        public string EventName { get; set; }
+    }
 
     public class ResClient : IDisposable
     {
@@ -16,6 +21,9 @@ namespace ResgateIO.Client
         public const string ProtocolVersion = "1.2.1";
 
         public static object DeleteValue = new object();
+
+        // Events
+        public event EventHandler<ResourceEventArgs> ResourceEvent;
 
         // Properties
 
@@ -69,6 +77,33 @@ namespace ResgateIO.Client
         {
             serializerSettings = settings;
             return this;
+        }
+
+        /// <summary>
+        /// Registers a model factory for a specific resource pattern.
+        /// The pattern may contain wildcards.
+        /// </summary>
+        /// <param name="pattern">Resource name pattern.</param>
+        /// <param name="factory">Model factory delegate.</param>
+        public void RegisterModelFactory(string pattern, ModelFactory factory)
+        {
+            throw new NotImplementedException();
+        }
+
+        /// <summary>
+        /// Registers a collection factory for a specific resource pattern.
+        /// The pattern may contain wildcards.
+        /// </summary>
+        /// <param name="pattern">Resource name pattern.</param>
+        /// <param name="factory">Collection factory delegate.</param>
+        //public void RegisterCollectionFactory(string pattern, CollectionFactory factory)
+        //{
+        //    throw new NotImplementedException();
+        //}
+
+        public void RegisterCollectionFactory(string pattern, CollectionFactory factory)
+        {
+            throw new NotImplementedException();
         }
 
         public async Task ConnectAsync()
@@ -224,7 +259,7 @@ namespace ResgateIO.Client
                     IResourceType type = resourceTypes[i];
                     foreach (KeyValuePair<string, JToken> pair in sync)
                     {
-                        //type.InitResource(itemCache[pair.Key].Resource, pair.Value);
+                        type.SynchronizeResource(itemCache[pair.Key].Resource, pair.Value);
                     }
                 }
             }

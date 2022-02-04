@@ -8,45 +8,74 @@ namespace ResgateIO.Client
     /// <summary>
     /// Represents a RES collection.
     /// </summary>
-    public class ResCollection : ResResource, IReadOnlyList<object>
+    public class ResCollection<T> : ResResource, IResCollection, IReadOnlyList<T>
     {
-        private List<object> values = null;
+        private List<T> values = null;
 
-        public int Count => ((IReadOnlyCollection<object>)values).Count;
+        /// <summary>
+        /// Resource type.
+        /// </summary>
+        public ResourceType ResourceType { get { return ResourceType.Collection; } }
 
-        public object this[int index] => ((IReadOnlyList<object>)values)[index];
+        public int Count => ((IReadOnlyCollection<T>)values).Count;
+
+        public T this[int index] => ((IReadOnlyList<T>)values)[index];
 
         /// <summary>
         /// Initializes a new instance of the ResCollection class.
         /// </summary>
-        public ResCollection(string rid) : base(rid) {}
+        public ResCollection(string rid) : base(rid) { }
 
         /// <summary>
-        /// Initializes the collection with value.
+        /// Initializes the collection with values.
         /// </summary>
-        public void Init(List<object> values)
+        /// <remarks>Not to be called directly. Used by ResClient.</remarks>
+        /// <param name="values">Collection values.</param>
+        public void Init(IReadOnlyList<object> values)
         {
-            this.values = values;
+            this.values = new List<T>(values.Count);
+            foreach (var value in values)
+            {
+                this.values.Add((T)value);
+            }
         }
 
+        /// <summary>
+        /// Handles an add event by adding a value to the collection.
+        /// </summary>
+        /// <remarks>Not to be called directly. Used by ResClient.</remarks>
+        /// <param name="index">Index position of the added value.</param>
+        /// <param name="value">Value being added.</param>
         public void HandleAdd(int index, object value)
         {
-            throw new NotImplementedException();
+            this.values.Insert(index, (T)value);
+            // [TODO] Trigger observables
         }
 
+        /// <summary>
+        /// Handles a remove event by removing value from the collection.
+        /// </summary>
+        /// <remarks>Not to be called directly. Used by ResClient.</remarks>
+        /// <param name="index">Index position of the removed value.</param>
         public void HandleRemove(int index)
         {
-            throw new NotImplementedException();
+            this.values.RemoveAt(index);
+            // [TODO] Trigger observables
         }
 
-        public IEnumerator<object> GetEnumerator()
+        public IEnumerator<T> GetEnumerator()
         {
-            return ((IEnumerable<object>)values).GetEnumerator();
+            return ((IEnumerable<T>)values).GetEnumerator();
         }
 
         IEnumerator IEnumerable.GetEnumerator()
         {
             return ((IEnumerable)values).GetEnumerator();
         }
+    }
+
+    public class ResCollection : ResCollection<object>
+    {
+        public ResCollection(string rid) : base(rid) { }
     }
 }

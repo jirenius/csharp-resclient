@@ -5,12 +5,25 @@ using Newtonsoft.Json;
 
 namespace ResgateIO.Client
 {
+
+    public class ChangeEventArgs : EventArgs
+    {
+        public IReadOnlyDictionary<string, object> OldProps { get; set; }
+        public IReadOnlyDictionary<string, object> NewProps { get; set; }
+    }
+
     /// <summary>
     /// Represents a RES model.
     /// </summary>
-    public class ResModel : ResResource, IReadOnlyDictionary<string, object>
+    public class ResModel : ResResource, IResModel, IReadOnlyDictionary<string, object>
     {
         private Dictionary<string, object> props = null;
+        public event EventHandler<ChangeEventArgs> ChangeEvent;
+
+        /// <summary>
+        /// Resource type.
+        /// </summary>
+        public ResourceType ResourceType { get { return ResourceType.Model; } }
 
         public IEnumerable<string> Keys => ((IReadOnlyDictionary<string, object>)props).Keys;
 
@@ -26,20 +39,52 @@ namespace ResgateIO.Client
         public ResModel(string rid) : base(rid) {}
 
         /// <summary>
-        /// Initializes the model with values.
+        /// Initializes the model with property values.
         /// </summary>
-        public void Init(Dictionary<string, object> props)
+        /// <remarks>Not to be called directly. Called by ResClient.</remarks>
+        /// <param name="props">All model property values.</param>
+        public void Init(IReadOnlyDictionary<string, object> props)
         {
-            this.props = props;
+            this.props = new Dictionary<string, object>(props.Count);
+            foreach (var pair in props)
+            {
+                this.props.Add(pair.Key, pair.Value);
+            }
         }
 
         /// <summary>
-        /// Handles update events.
+        /// Updates the model with changed property values.
         /// </summary>
-        /// <param name="newProps">New property values.</param>
-        public void HandleUpdate(IReadOnlyDictionary<string, object> newProps)
+        /// <remarks>Not to be called directly. Used by ResClient.</remarks>
+        /// <param name="props">Changed properties and their new value.</param>
+        public void HandleChange(IReadOnlyDictionary<string, object> props)
         {
-            throw new NotImplementedException();
+            var oldProps = new Dictionary<string, object>(props.Count);
+            foreach (var pair in props)
+            {
+                if (this.props.ContainsKey(pair.Key))
+                {
+                    oldProps.Add(pair.Key, this.props[pair.Key]);
+                }
+                if (pair.Value == ResAction.Delete)
+                {
+                    this.props.Remove(pair.Key);
+                }
+                else
+                {
+                    this.props.Add(pair.Key, pair.Value);
+                }
+            }
+
+            EventHandler<ChangeEventArgs> handler = ChangeEvent;
+            if (handler != null)
+            {
+                handler(this, new ChangeEventArgs
+                {
+                    NewProps = props,
+                    OldProps = oldProps
+                });
+            }
         }
 
         public bool ContainsKey(string key)

@@ -5,6 +5,8 @@ using System.Text;
 
 namespace ResgateIO.Client
 {
+    public delegate IResCollection CollectionFactory(ResClient client, string rid);
+
     class ResourceTypeCollection : IResourceType
     {
         public ResourceType ResourceType { get { return ResourceType.Collection; } }
@@ -44,6 +46,11 @@ namespace ResgateIO.Client
             }
 
             Collection.Init(values);
+        }
+
+        public void SynchronizeResource(ResResource resource, JToken data)
+        {
+            throw new NotImplementedException();
         }
     }
 }
