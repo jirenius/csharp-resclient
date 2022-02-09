@@ -8,7 +8,7 @@ namespace ResgateIO.Client
     /// <summary>
     /// Represents a RES collection.
     /// </summary>
-    public class ResCollection<T> : ResResource, IResCollection, IReadOnlyList<T>
+    public class ResCollection<T> : ResCollectionResource, IReadOnlyList<T>
     {
         private List<T> values = null;
 
@@ -31,7 +31,7 @@ namespace ResgateIO.Client
         /// </summary>
         /// <remarks>Not to be called directly. Used by ResClient.</remarks>
         /// <param name="values">Collection values.</param>
-        public void Init(IReadOnlyList<object> values)
+        public override void Init(IReadOnlyList<object> values)
         {
             this.values = new List<T>(values.Count);
             foreach (var value in values)
@@ -46,7 +46,7 @@ namespace ResgateIO.Client
         /// <remarks>Not to be called directly. Used by ResClient.</remarks>
         /// <param name="index">Index position of the added value.</param>
         /// <param name="value">Value being added.</param>
-        public void HandleAdd(int index, object value)
+        public override void HandleAdd(int index, object value)
         {
             this.values.Insert(index, (T)value);
             // [TODO] Trigger observables
@@ -57,7 +57,7 @@ namespace ResgateIO.Client
         /// </summary>
         /// <remarks>Not to be called directly. Used by ResClient.</remarks>
         /// <param name="index">Index position of the removed value.</param>
-        public void HandleRemove(int index)
+        public override void HandleRemove(int index)
         {
             this.values.RemoveAt(index);
             // [TODO] Trigger observables

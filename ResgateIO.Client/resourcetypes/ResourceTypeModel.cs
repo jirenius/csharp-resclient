@@ -6,7 +6,7 @@ using System.Text;
 namespace ResgateIO.Client
 {
 
-    public delegate IResModel ModelFactory(ResClient client, string rid);
+    public delegate ResModelResource ModelFactory(ResClient client, string rid);
 
     class ResourceTypeModel : IResourceType
     {
@@ -27,14 +27,14 @@ namespace ResgateIO.Client
             return f(this.client, rid) as ResResource;
         }
 
-        private IResModel defaultModelFactory(ResClient client, string rid)
+        private ResModelResource defaultModelFactory(ResClient client, string rid)
         {
             return new ResModel(rid);
         }
 
         public void InitResource(ResResource resource, JToken data)
         {
-            IResModel model = resource as IResModel;
+            ResModelResource model = resource as ResModelResource;
             if (model == null)
             {
                 throw new InvalidOperationException("Resource not implementing IResModel.");

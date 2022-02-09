@@ -9,14 +9,14 @@ namespace ResgateIO.Client
     public abstract class ResResource
     {
         /// <summary>
+        /// Resource type.
+        /// </summary>
+        public abstract ResourceType Type { get; }
+
+        /// <summary>
         /// Resource ID.
         /// </summary>
         public string ResourceID { get; private set; }
-
-        /// <summary>
-        /// Name of the resource type.
-        /// </summary>
-        public ResourceType Type { get; }
 
         /// <summary>
         /// Initializes a new instance of the ResResource class.

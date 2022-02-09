@@ -5,7 +5,7 @@ using System.Text;
 
 namespace ResgateIO.Client
 {
-    public delegate IResCollection CollectionFactory(ResClient client, string rid);
+    public delegate ResCollectionResource CollectionFactory(ResClient client, string rid);
 
     class ResourceTypeCollection : IResourceType
     {

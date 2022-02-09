@@ -15,7 +15,7 @@ namespace ResgateIO.Client
     /// <summary>
     /// Represents a RES model.
     /// </summary>
-    public class ResModel : ResResource, IResModel, IReadOnlyDictionary<string, object>
+    public class ResModel : ResModelResource, IReadOnlyDictionary<string, object>
     {
         private Dictionary<string, object> props = null;
         public event EventHandler<ChangeEventArgs> ChangeEvent;
@@ -43,7 +43,7 @@ namespace ResgateIO.Client
         /// </summary>
         /// <remarks>Not to be called directly. Called by ResClient.</remarks>
         /// <param name="props">All model property values.</param>
-        public void Init(IReadOnlyDictionary<string, object> props)
+        public override void Init(IReadOnlyDictionary<string, object> props)
         {
             this.props = new Dictionary<string, object>(props.Count);
             foreach (var pair in props)
@@ -57,7 +57,7 @@ namespace ResgateIO.Client
         /// </summary>
         /// <remarks>Not to be called directly. Used by ResClient.</remarks>
         /// <param name="props">Changed properties and their new value.</param>
-        public void HandleChange(IReadOnlyDictionary<string, object> props)
+        public override void HandleChange(IReadOnlyDictionary<string, object> props)
         {
             var oldProps = new Dictionary<string, object>(props.Count);
             foreach (var pair in props)
