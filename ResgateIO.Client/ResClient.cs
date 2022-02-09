@@ -189,6 +189,17 @@ namespace ResgateIO.Client
         }
 
         /// <summary>
+        /// Calls an API resource method.
+        /// </summary>
+        /// <param name="rid">Resource ID.</param>
+        /// <param name="method">Method.</param>
+        /// <returns>The resource.</returns>
+        public Task<object> CallAsync(string rid, string method)
+        {
+            return CallAsync(rid, method, null);
+        }
+
+        /// <summary>
         /// Calls an API resource method and returns the result as a value of type T.
         /// </summary>
         /// <param name="rid">Resource ID.</param>
@@ -199,6 +210,17 @@ namespace ResgateIO.Client
         {
             await Task.Delay(1);
             throw new NotImplementedException();
+        }
+
+        /// <summary>
+        /// Calls an API resource method and returns the result as a value of type T.
+        /// </summary>
+        /// <param name="rid">Resource ID.</param>
+        /// <param name="method">Method.</param>
+        /// <returns>The resource.</returns>
+        public Task<T> CallAsync<T>(string rid, string method)
+        {
+            return CallAsync<T>(rid, method, null);
         }
 
         private async Task subscribeAsync(CacheItem ci)

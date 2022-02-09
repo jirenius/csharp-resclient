@@ -31,31 +31,50 @@ namespace ResgateIO.Client.UnitTests
         }
 
         /// <summary>
-        /// User represents a user resource model.
+        /// Mail represents a mail message resource model.
         /// </summary>
-        public class User : ResModelResource
+        public class Mail : ResModelResource
         {
-            public string Name;
-            public string Surname;
+            public string Subject { get; private set; }
+            public string Sender { get; private set; }
+            public string Body { get; private set; }
 
-            public User(string rid) : base(rid) { }
+            public readonly ResClient Client;
+
+            public Mail(ResClient client, string rid) : base(rid)
+            {
+                Client = client;
+            }
 
             public override void Init(IReadOnlyDictionary<string, object> props)
             {
-                Name = (props["name"] as JObject).Value<string>();
-                Surname = (props["name"] as JObject).Value<string>();
+                Subject = (props["subject"] as JObject).Value<string>();
+                Sender = (props["sender"] as JObject).Value<string>();
+                Body = (props["Body"] as JObject).Value<string>();
             }
 
             public override void HandleChange(IReadOnlyDictionary<string, object> props)
             {
-                if (props.TryGetValue("name", out object name))
+                if (props.TryGetValue("subject", out object subject))
                 {
-                    Name = (name as JObject).Value<string>();
+                    Subject = (subject as JObject).Value<string>();
                 }
-                if (props.TryGetValue("surname", out object surname))
+                if (props.TryGetValue("sender", out object sender))
                 {
-                    Surname = (surname as JObject).Value<string>();
+                    Sender = (sender as JObject).Value<string>();
                 }
+                if (props.TryGetValue("body", out object body))
+                {
+                    Body = (body as JObject).Value<string>();
+                }
+            }
+
+            public async Task ReplyAsync(string message)
+            {
+                await Client.CallAsync(ResourceID, "reply", new
+                {
+                    message = message
+                });
             }
         }
 
@@ -65,17 +84,17 @@ namespace ResgateIO.Client.UnitTests
             // Creating a client using a hostUrl string
             var client = new ResClient("ws://127.0.0.1:8080");
 
-            // Registering user model factory
-            client.RegisterModelFactory("example.user.*", (client, rid) => new User(rid));
-            client.RegisterCollectionFactory("example.users", (client, rid) => new ResCollection<User>(rid));
+            // Registering mail model and collection factories
+            client.RegisterModelFactory("example.user.*", (client, rid) => new Mail(client, rid));
+            client.RegisterCollectionFactory("example.mails", (client, rid) => new ResCollection<Mail>(rid));
 
-            // Getting a model of the default type ResModel
-            var users = await client.GetAsync("example.users") as ResCollection<User>;
+            // Getting a collection of registered types.
+            var mails = await client.GetAsync("example.mails") as ResCollection<Mail>;
 
-            // Iterate over all users
-            foreach (User user in users)
+            // Iterate over all mails
+            foreach (Mail mail in mails)
             {
-                Console.WriteLine("User: {0} {1}", user.Name, user.Surname);
+                Console.WriteLine("User: {0} {1}", mail.Name, mail.Surname);
             }
         }
 
@@ -109,57 +128,20 @@ namespace ResgateIO.Client.UnitTests
             Console.WriteLine("Event for resource {0}: {1}", e.ResourceID, e.EventName);
         }
 
-        /// <summary>
-        /// Book represents a book resource model.
-        /// </summary>
-        public class Book : ResModelResource
-        {
-            public string Title { get; private set; }
-            public string Author { get; private set; }
-
-            public readonly ResClient Client;
-
-            public Book(ResClient client, string rid) : base(rid) {
-                Client = client;
-            }
-
-            public override void Init(IReadOnlyDictionary<string, object> props)
-            {
-                Title = (props["title"] as JObject).Value<string>();
-                Author = (props["author"] as JObject).Value<string>();
-            }
-
-            public override void HandleChange(IReadOnlyDictionary<string, object> props)
-            {
-                if (props.TryGetValue("title", out object name))
-                {
-                    Title = (name as JObject).Value<string>();
-                }
-                if (props.TryGetValue("author", out object surname))
-                {
-                    Author = (surname as JObject).Value<string>();
-                }
-            }
-        }
-
         [Fact(Skip = "example code")]
-        public async Task ExampleAsync_CallMethodOnModel()
+        public async Task ExampleAsync_CallMethods()
         {
             // Creating a client using a hostUrl string
             var client = new ResClient("ws://127.0.0.1:8080");
 
             // Registering user model factory
-            client.RegisterModelFactory("example.user.*", (client, rid) => new User(rid));
-            client.RegisterCollectionFactory("example.users", (client, rid) => new ResCollection<User>(rid));
+            client.RegisterModelFactory("example.mail.*", (client, rid) => new Mail(client, rid));
 
-            // Getting a model of the default type ResModel
-            var users = await client.GetAsync("example.users") as ResCollection<User>;
+            // Getting a mail model from a call request by assuming a resource response.
+            var mail = await client.CallAsync<Mail>("example.mail", "getLastMail", null);
 
-            // Iterate over all users
-            foreach (User user in users)
-            {
-                Console.WriteLine("User: {0} {1}", user.Name, user.Surname);
-            }
+            // Call model method
+            await mail.ReplyAsync("This is my reply");
         }
     }
 }
