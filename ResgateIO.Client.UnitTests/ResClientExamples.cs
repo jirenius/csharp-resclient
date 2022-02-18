@@ -50,7 +50,7 @@ namespace ResgateIO.Client.UnitTests
             {
                 Subject = (props["subject"] as JObject).Value<string>();
                 Sender = (props["sender"] as JObject).Value<string>();
-                Body = (props["Body"] as JObject).Value<string>();
+                Body = (props["body"] as JObject).Value<string>();
             }
 
             public override void HandleChange(IReadOnlyDictionary<string, object> props)
@@ -85,7 +85,7 @@ namespace ResgateIO.Client.UnitTests
             var client = new ResClient("ws://127.0.0.1:8080");
 
             // Registering mail model and collection factories
-            client.RegisterModelFactory("example.user.*", (client, rid) => new Mail(client, rid));
+            client.RegisterModelFactory("example.mail.*", (client, rid) => new Mail(client, rid));
             client.RegisterCollectionFactory("example.mails", (client, rid) => new ResCollection<Mail>(rid));
 
             // Getting a collection of registered types.
@@ -94,7 +94,7 @@ namespace ResgateIO.Client.UnitTests
             // Iterate over all mails
             foreach (Mail mail in mails)
             {
-                Console.WriteLine("User: {0} {1}", mail.Name, mail.Surname);
+                Console.WriteLine("Mail: {0} {1}", mail.Subject, mail.Body);
             }
         }
 
@@ -134,11 +134,12 @@ namespace ResgateIO.Client.UnitTests
             // Creating a client using a hostUrl string
             var client = new ResClient("ws://127.0.0.1:8080");
 
-            // Registering user model factory
+            // Registering mail model factory
             client.RegisterModelFactory("example.mail.*", (client, rid) => new Mail(client, rid));
 
-            // Getting a mail model from a call request by assuming a resource response.
-            var mail = await client.CallAsync<Mail>("example.mail", "getLastMail", null);
+            // Calling a method assuming it returns a mail model in a resource response.
+            var mail = await client.CallAsync("example.mails", "getLastMail") as Mail;
+            var totalMails = await client.CallAsync<int>("example.mails", "getTotalMails");            
 
             // Call model method
             await mail.ReplyAsync("This is my reply");
