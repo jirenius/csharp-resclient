@@ -186,6 +186,20 @@ namespace ResgateIO.Client.UnitTests
             Test.AssertEqualJSON("foo", result);
         }
 
+        [Fact]
+        public async Task CallAsync_ResourceResponse_GetsResource()
+        {
+            await ConnectAndHandshake();
+
+            var creqTask = Client.CallAsync("test.model", "method");
+            var req = await WebSocket.GetRequestAsync();
+            req.AssertMethod("call.test.model.method");
+            req.SendResult(new JObject { { "rid", "test.ref" }, { "models", new JObject { { "test.ref", Test.Model } } } });
+            var model = await creqTask;
+            Assert.IsType<ResModel>(model);
+            Test.AssertEqualJSON(Test.Model, model);
+        }
+
         [Theory]
         [InlineData("\"foo\"", "foo")]
         [InlineData("null", null)]
@@ -228,6 +242,20 @@ namespace ResgateIO.Client.UnitTests
             req.SendResult(new JObject { { "payload", "foo" } });
             var result = await creqTask;
             Test.AssertEqualJSON("foo", result);
+        }
+
+        [Fact]
+        public async Task AuthAsync_ResourceResponse_GetsResource()
+        {
+            await ConnectAndHandshake();
+
+            var creqTask = Client.AuthAsync("test.model", "method");
+            var req = await WebSocket.GetRequestAsync();
+            req.AssertMethod("auth.test.model.method");
+            req.SendResult(new JObject { { "rid", "test.ref" }, { "models", new JObject { { "test.ref", Test.Model } } } });
+            var model = await creqTask;
+            Assert.IsType<ResModel>(model);
+            Test.AssertEqualJSON(Test.Model, model);
         }
     }
 }

@@ -302,6 +302,7 @@ namespace ResgateIO.Client
                     {
                         throw new ResException(String.Format("Resource not found in cache: {0}", rid));
                     }
+                    ci.AddSubscription(1);
                 }
                 return ci.Resource;
             }
