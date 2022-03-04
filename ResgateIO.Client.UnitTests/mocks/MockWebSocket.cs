@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Xunit.Abstractions;
 
 namespace ResgateIO.Client.UnitTests
 {
@@ -12,10 +13,16 @@ namespace ResgateIO.Client.UnitTests
     {
         public event EventHandler<MessageEventArgs> OnMessage;
 
+        private readonly ITestOutputHelper log;
         private HashSet<int> requestIds = new HashSet<int>();
         private Queue<MockRequest> requestQueue = new Queue<MockRequest>();
         private Queue<TaskCompletionSource<MockRequest>> awaiters = new Queue<TaskCompletionSource<MockRequest>>();
         private object requestLock = new object();
+
+        public MockWebSocket(ITestOutputHelper output)
+        {
+            log = output;
+        }
 
         public void Dispose()
         {
@@ -23,6 +30,8 @@ namespace ResgateIO.Client.UnitTests
 
         public Task SendAsync(byte[] data)
         {
+            log?.WriteLine("<-- {0}", Encoding.UTF8.GetString(data));
+
             var request = new MockRequest(this, data);
 
             TaskCompletionSource<MockRequest> tcs;
@@ -51,14 +60,16 @@ namespace ResgateIO.Client.UnitTests
 
         public Task DisconnectAsync()
         {
+            log?.WriteLine("<-X Disconnected");
             return Task.CompletedTask;
         }
 
-        public void SendMessage(byte[]dta)
+        public void SendMessage(byte[] data)
         {
+            log?.WriteLine("--> {0}", Encoding.UTF8.GetString(data));
             OnMessage.Invoke(this, new MessageEventArgs
             {
-                Message = dta,
+                Message = data,
             });
         }
 

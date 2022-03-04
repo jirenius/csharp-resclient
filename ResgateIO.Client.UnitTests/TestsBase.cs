@@ -32,7 +32,7 @@ namespace ResgateIO.Client.UnitTests
 
         private Task<IWebSocket> createWebSocket()
         {
-            WebSocket = new MockWebSocket();
+            WebSocket = new MockWebSocket(Output);
             Resgate = new MockResgate(WebSocket);
             return Task.FromResult<IWebSocket>(WebSocket);
         }

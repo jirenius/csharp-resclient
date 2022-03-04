@@ -30,7 +30,7 @@ namespace ResgateIO.Client.UnitTests
         [Fact]
         public async Task ConnectAsync_ConnectsToMockWebSocket()
         {
-            var ws = new MockWebSocket();
+            var ws = new MockWebSocket(Output);
             var resgate = new MockResgate(ws);
             var client = new ResClient(() => Task.FromResult<IWebSocket>(ws));
             
@@ -140,6 +140,20 @@ namespace ResgateIO.Client.UnitTests
             var parent = await creqTask as ResModel;
             Assert.Equal("test.model.parent", parent.ResourceID);
             Test.AssertEqualJSON(new JObject { { "ref", Test.Model } }, parent);
+        }
+
+        [Theory]
+        [InlineData("\"foo\"", "foo")]
+        public async Task CallAsync_WithPayload_GetsPayload(string payload, object expected)
+        {
+            await ConnectAndHandshake();
+
+            var creqTask = Client.CallAsync("test.model", "method");
+            var req = await WebSocket.GetRequestAsync();
+            req.AssertMethod("call.test.model.method");
+            req.SendResult(new JObject { { "payload", JToken.Parse(payload) } });
+            var result = await creqTask as ResModel;
+            Assert.Equal(expected, result);
         }
     }
 }
