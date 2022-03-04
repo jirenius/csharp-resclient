@@ -44,6 +44,7 @@ namespace ResgateIO.Client
 
         // Private constants
         private const string legacyProtocol = "1.1.1";
+        private static int legacyProtocolVersion = versionToInt(legacyProtocol);
 
         public ResClient(string hostUrl)
         {
@@ -176,20 +177,19 @@ namespace ResgateIO.Client
         }
 
         /// <summary>
-        /// Calls an API resource method.
+        /// Sends a request to an API resource call method.
         /// </summary>
         /// <param name="rid">Resource ID.</param>
         /// <param name="method">Method.</param>
         /// <param name="parameters">Method parameters.</param>
         /// <returns>The resource.</returns>
-        public async Task<object> CallAsync(string rid, string method, object parameters)
+        public Task<object> CallAsync(string rid, string method, object parameters)
         {
-            await Task.Delay(1);
-            throw new NotImplementedException();
+            return requestAsync("call", rid, method, parameters);
         }
 
         /// <summary>
-        /// Calls an API resource method.
+        /// Sends a request to an API resource call method.
         /// </summary>
         /// <param name="rid">Resource ID.</param>
         /// <param name="method">Method.</param>
@@ -200,20 +200,19 @@ namespace ResgateIO.Client
         }
 
         /// <summary>
-        /// Calls an API resource method and returns the result as a value of type T.
+        /// Sends a request to an API resource call method and returns the result as a value of type T.
         /// </summary>
         /// <param name="rid">Resource ID.</param>
         /// <param name="method">Method.</param>
         /// <param name="parameters">Method parameters.</param>
         /// <returns>The resource.</returns>
-        public async Task<T> CallAsync<T>(string rid, string method, object parameters)
+        public Task<T> CallAsync<T>(string rid, string method, object parameters)
         {
-            await Task.Delay(1);
-            throw new NotImplementedException();
+            return requestAsync<T>("call", rid, method, parameters);
         }
 
         /// <summary>
-        /// Calls an API resource method and returns the result as a value of type T.
+        /// Sends a request to an API resource call method and returns the result as a value of type T.
         /// </summary>
         /// <param name="rid">Resource ID.</param>
         /// <param name="method">Method.</param>
@@ -223,6 +222,114 @@ namespace ResgateIO.Client
             return CallAsync<T>(rid, method, null);
         }
 
+        /// <summary>
+        /// Sends a request to an API resource authentication method.
+        /// </summary>
+        /// <param name="rid">Resource ID.</param>
+        /// <param name="method">Method.</param>
+        /// <param name="parameters">Method parameters.</param>
+        /// <returns>The resource.</returns>
+        public Task<object> AuthAsync(string rid, string method, object parameters)
+        {
+            return requestAsync("auth", rid, method, parameters);
+        }
+
+        /// <summary>
+        /// Sends a request to an API resource authentication method.
+        /// </summary>
+        /// <param name="rid">Resource ID.</param>
+        /// <param name="method">Method.</param>
+        /// <returns>The resource.</returns>
+        public Task<object> AuthAsync(string rid, string method)
+        {
+            return AuthAsync(rid, method, null);
+        }
+
+        /// <summary>
+        /// Sends a request to an API resource authentication method and returns the result as a value of type T.
+        /// </summary>
+        /// <param name="rid">Resource ID.</param>
+        /// <param name="method">Method.</param>
+        /// <param name="parameters">Method parameters.</param>
+        /// <returns>The resource.</returns>
+        public Task<T> AuthAsync<T>(string rid, string method, object parameters)
+        {
+            return requestAsync<T>("auth", rid, method, parameters);
+        }
+
+        /// <summary>
+        /// Sends a request to an API resource authentication method and returns the result as a value of type T.
+        /// </summary>
+        /// <param name="rid">Resource ID.</param>
+        /// <param name="method">Method.</param>
+        /// <returns>The resource.</returns>
+        public Task<T> AuthAsync<T>(string rid, string method)
+        {
+            return AuthAsync<T>(rid, method, null);
+        }
+
+        // _call
+        private async Task<object> requestAsync(string type, string rid, string method, object parameters)
+        {
+            RequestResult result = await sendAsync(type, rid, method, parameters);
+
+            if (protocol <= legacyProtocolVersion)
+            {
+                return result.Result;
+            }
+
+            if (result.Result == null)
+            {
+                return null;
+            }
+
+            JObject r = result.Result as JObject;
+            if (r == null)
+            {
+                return null;
+            }
+
+            // Check if the result is a resource response
+            if (r.ContainsKey("rid"))
+            {
+                var resourceID = (string)r["rid"];
+                
+                CacheItem ci;
+                lock (cacheLock)
+                {
+                    cacheResources(result.Result);
+                    if (!itemCache.TryGetValue(resourceID, out ci))
+                    {
+                        throw new ResException(String.Format("Resource not found in cache: {0}", rid));
+                    }
+                }
+                return ci.Resource;
+            }
+
+            return r["payload"];
+        }
+
+
+        // _call
+        private async Task<T> requestAsync<T>(string type, string rid, string method, object parameters)
+        {
+            var o = await requestAsync(type, rid, method, parameters);
+            if (o is T)
+            {
+                return (T)o;
+            }
+
+            if (o is JToken)
+            {
+                var token = (JToken)o;
+                return token.Value<T>();
+            }
+
+            // Try to type cast it as a last measure
+            return (T)Convert.ChangeType(o, typeof(T));
+        }
+
+        // _subscribe
         private async Task subscribeAsync(CacheItem ci)
         {
             var rid = ci.ResourceID;
@@ -243,18 +350,23 @@ namespace ResgateIO.Client
 
             lock (cacheLock)
             {
-                cacheResources(result);
+                cacheResources(result.Result);
             }
         }
 
-        private void cacheResources(RequestResult result)
+        /// <summary>
+        /// Adds a resources from a request result to the cache.
+        /// The cacheLock must be held before call.
+        /// </summary>
+        /// <param name="result">Request result</param>
+        private void cacheResources(JToken result)
         {
-            if (result.Result == null)
+            if (result == null)
             {
                 return;
             }
 
-            JObject r = result.Result as JObject;
+            JObject r = result as JObject;
             if (r == null)
             {
                 return;
@@ -438,6 +550,7 @@ namespace ResgateIO.Client
             throw new InvalidOperationException("Invalid RES value: " + value.ToString(Formatting.None));
         }
 
+        // _send
         private async Task<RequestResult> sendAsync(string action, string rid, string method, object parameters)
         {
             string m = String.IsNullOrEmpty(method)
