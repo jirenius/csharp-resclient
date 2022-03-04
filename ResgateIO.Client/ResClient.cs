@@ -322,7 +322,7 @@ namespace ResgateIO.Client
             if (o is JToken)
             {
                 var token = (JToken)o;
-                return token.Value<T>();
+                return token.ToObject<T>();
             }
 
             // Try to type cast it as a last measure

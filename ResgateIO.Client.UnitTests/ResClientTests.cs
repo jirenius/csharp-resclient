@@ -33,7 +33,7 @@ namespace ResgateIO.Client.UnitTests
             var ws = new MockWebSocket(Output);
             var resgate = new MockResgate(ws);
             var client = new ResClient(() => Task.FromResult<IWebSocket>(ws));
-            
+
             var connectTask = client.ConnectAsync();
             await resgate.HandshakeAsync("1.2.2");
             await connectTask;
@@ -144,7 +144,11 @@ namespace ResgateIO.Client.UnitTests
 
         [Theory]
         [InlineData("\"foo\"", "foo")]
-        public async Task CallAsync_WithPayload_GetsPayload(string payload, object expected)
+        [InlineData("null", null)]
+        [InlineData("42", 42)]
+        [InlineData("true", true)]
+        [InlineData("[\"foo\",null,42,true]", new object[] { "foo", null, 42, true })]
+        public async Task CallAsync_AnonymousResult_GetsResult(string payload, object expected)
         {
             await ConnectAndHandshake();
 
@@ -152,8 +156,78 @@ namespace ResgateIO.Client.UnitTests
             var req = await WebSocket.GetRequestAsync();
             req.AssertMethod("call.test.model.method");
             req.SendResult(new JObject { { "payload", JToken.Parse(payload) } });
-            var result = await creqTask as ResModel;
-            Assert.Equal(expected, result);
+            var result = await creqTask;
+            Test.AssertEqualJSON(expected == null ? JValue.CreateNull() : JToken.FromObject(expected), result);
+        }
+
+        [Fact]
+        public async Task CallAsync_ObjectResult_GetsResult()
+        {
+            await ConnectAndHandshake();
+
+            var creqTask = Client.CallAsync<Test.Payload>("test.model", "method");
+            var req = await WebSocket.GetRequestAsync();
+            req.AssertMethod("call.test.model.method");
+            req.SendResult(new JObject { { "payload", new JObject { { "foo", "bar" } } } });
+            var payload = await creqTask;
+            Test.AssertEqualJSON("bar", payload.Foo);
+        }
+
+        [Fact]
+        public async Task CallAsync_PrimitiveResult_GetsResult()
+        {
+            await ConnectAndHandshake();
+
+            var creqTask = Client.CallAsync<string>("test.model", "method");
+            var req = await WebSocket.GetRequestAsync();
+            req.AssertMethod("call.test.model.method");
+            req.SendResult(new JObject { { "payload", "foo" } });
+            var result = await creqTask;
+            Test.AssertEqualJSON("foo", result);
+        }
+
+        [Theory]
+        [InlineData("\"foo\"", "foo")]
+        [InlineData("null", null)]
+        [InlineData("42", 42)]
+        [InlineData("true", true)]
+        [InlineData("[\"foo\",null,42,true]", new object[] { "foo", null, 42, true })]
+        public async Task AuthAsync_AnonymousResult_GetsResult(string payload, object expected)
+        {
+            await ConnectAndHandshake();
+
+            var creqTask = Client.AuthAsync("test.model", "method");
+            var req = await WebSocket.GetRequestAsync();
+            req.AssertMethod("auth.test.model.method");
+            req.SendResult(new JObject { { "payload", JToken.Parse(payload) } });
+            var result = await creqTask;
+            Test.AssertEqualJSON(expected == null ? JValue.CreateNull() : JToken.FromObject(expected), result);
+        }
+
+        [Fact]
+        public async Task AuthAsync_ObjectResult_GetsResult()
+        {
+            await ConnectAndHandshake();
+
+            var creqTask = Client.AuthAsync<Test.Payload>("test.model", "method");
+            var req = await WebSocket.GetRequestAsync();
+            req.AssertMethod("auth.test.model.method");
+            req.SendResult(new JObject { { "payload", new JObject { { "foo", "bar" } } } });
+            var payload = await creqTask;
+            Test.AssertEqualJSON("bar", payload.Foo);
+        }
+
+        [Fact]
+        public async Task AuthAsync_PrimitiveResult_GetsResult()
+        {
+            await ConnectAndHandshake();
+
+            var creqTask = Client.AuthAsync<string>("test.model", "method");
+            var req = await WebSocket.GetRequestAsync();
+            req.AssertMethod("auth.test.model.method");
+            req.SendResult(new JObject { { "payload", "foo" } });
+            var result = await creqTask;
+            Test.AssertEqualJSON("foo", result);
         }
     }
 }

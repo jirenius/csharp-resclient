@@ -1,4 +1,5 @@
-﻿using Newtonsoft.Json.Linq;
+﻿using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using Xunit;
@@ -7,6 +8,12 @@ namespace ResgateIO.Client.UnitTests
 {
     public static class Test
     {
+        public class Payload
+        {
+            [JsonProperty(PropertyName = "foo")]
+            public string Foo;
+        }
+
         public static readonly JObject Model = new JObject { { "foo", "bar" } };
         public static readonly JArray Collection = new JArray { "foo", "bar" };
 
