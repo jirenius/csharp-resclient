@@ -86,7 +86,7 @@ namespace ResgateIO.Client.UnitTests
 
             // Registering mail model and collection factories
             client.RegisterModelFactory("example.mail.*", (client, rid) => new Mail(client, rid));
-            client.RegisterCollectionFactory("example.mails", (client, rid) => new ResCollection<Mail>(rid));
+            client.RegisterCollectionFactory("example.mails", (client, rid) => new ResCollection<Mail>(client, rid));
 
             // Getting a collection of registered types.
             var mails = await client.GetAsync("example.mails") as ResCollection<Mail>;

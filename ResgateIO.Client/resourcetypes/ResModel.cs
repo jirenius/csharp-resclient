@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using Newtonsoft.Json;
 
 namespace ResgateIO.Client
@@ -33,10 +34,100 @@ namespace ResgateIO.Client
 
         public object this[string key] => ((IReadOnlyDictionary<string, object>)props)[key];
 
+        public readonly ResClient Client;
+
         /// <summary>
         /// Initializes a new instance of the ResModel class.
         /// </summary>
-        public ResModel(string rid) : base(rid) {}
+        public ResModel(ResClient client, string rid) : base(rid) {
+            Client = client;
+        }
+
+        /// <summary>
+        /// Sends a request to a call method.
+        /// </summary>
+        /// <param name="rid">Resource ID.</param>
+        /// <param name="method">Method.</param>
+        /// <param name="parameters">Method parameters.</param>
+        /// <returns>The result.</returns>
+        public Task<object> CallAsync(string method, object parameters)
+        {
+            return Client.CallAsync(ResourceID, method, parameters);
+        }
+
+        /// <summary>
+        /// Sends a request to a call method.
+        /// </summary>
+        /// <param name="rid">Resource ID.</param>
+        /// <param name="method">Method.</param>
+        /// <returns>The result.</returns>
+        public Task<object> CallAsync(string method)
+        {
+            return Client.CallAsync(ResourceID, method);
+        }
+
+        /// <summary>
+        /// Sends a request to a call method and returns the result as a value of type T.
+        /// </summary>
+        /// <param name="method">Method.</param>
+        /// <param name="parameters">Method parameters.</param>
+        /// <returns>The result.</returns>
+        public Task<T> CallAsync<T>(string method, object parameters)
+        {
+            return Client.CallAsync<T>(ResourceID, method, parameters);
+        }
+
+        /// <summary>
+        /// Sends a request to a call method and returns the result as a value of type T.
+        /// </summary>
+        /// <param name="method">Method.</param>
+        /// <returns>The result.</returns>
+        public Task<T> CallAsync<T>(string method)
+        {
+            return Client.CallAsync<T>(ResourceID, method, null);
+        }
+
+        /// <summary>
+        /// Sends a request to an authentication method.
+        /// </summary>
+        /// <param name="method">Method.</param>
+        /// <param name="parameters">Method parameters.</param>
+        /// <returns>The result.</returns>
+        public Task<object> AuthAsync(string method, object parameters)
+        {
+            return Client.AuthAsync(ResourceID, method, parameters);
+        }
+
+        /// <summary>
+        /// Sends a request to an authentication method.
+        /// </summary>
+        /// <param name="method">Method.</param>
+        /// <returns>The result.</returns>
+        public Task<object> AuthAsync(string method)
+        {
+            return Client.AuthAsync(ResourceID, method);
+        }
+
+        /// <summary>
+        /// Sends a request to an authentication method and returns the result as a value of type T.
+        /// </summary>
+        /// <param name="method">Method.</param>
+        /// <param name="parameters">Method parameters.</param>
+        /// <returns>The result.</returns>
+        public Task<T> AuthAsync<T>(string method, object parameters)
+        {
+            return Client.AuthAsync<T>(ResourceID, method, parameters);
+        }
+
+        /// <summary>
+        /// Sends a request to an authentication method and returns the result as a value of type T.
+        /// </summary>
+        /// <param name="method">Method.</param>
+        /// <returns>The result.</returns>
+        public Task<T> AuthAsync<T>(string method)
+        {
+            return Client.AuthAsync<T>(ResourceID, method);
+        }
 
         /// <summary>
         /// Initializes the model with property values.

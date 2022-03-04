@@ -182,7 +182,7 @@ namespace ResgateIO.Client
         /// <param name="rid">Resource ID.</param>
         /// <param name="method">Method.</param>
         /// <param name="parameters">Method parameters.</param>
-        /// <returns>The resource.</returns>
+        /// <returns>The result.</returns>
         public Task<object> CallAsync(string rid, string method, object parameters)
         {
             return requestAsync("call", rid, method, parameters);
@@ -193,7 +193,7 @@ namespace ResgateIO.Client
         /// </summary>
         /// <param name="rid">Resource ID.</param>
         /// <param name="method">Method.</param>
-        /// <returns>The resource.</returns>
+        /// <returns>The result.</returns>
         public Task<object> CallAsync(string rid, string method)
         {
             return CallAsync(rid, method, null);
@@ -205,7 +205,7 @@ namespace ResgateIO.Client
         /// <param name="rid">Resource ID.</param>
         /// <param name="method">Method.</param>
         /// <param name="parameters">Method parameters.</param>
-        /// <returns>The resource.</returns>
+        /// <returns>The result.</returns>
         public Task<T> CallAsync<T>(string rid, string method, object parameters)
         {
             return requestAsync<T>("call", rid, method, parameters);
@@ -216,7 +216,7 @@ namespace ResgateIO.Client
         /// </summary>
         /// <param name="rid">Resource ID.</param>
         /// <param name="method">Method.</param>
-        /// <returns>The resource.</returns>
+        /// <returns>The result.</returns>
         public Task<T> CallAsync<T>(string rid, string method)
         {
             return CallAsync<T>(rid, method, null);
@@ -228,7 +228,7 @@ namespace ResgateIO.Client
         /// <param name="rid">Resource ID.</param>
         /// <param name="method">Method.</param>
         /// <param name="parameters">Method parameters.</param>
-        /// <returns>The resource.</returns>
+        /// <returns>The result.</returns>
         public Task<object> AuthAsync(string rid, string method, object parameters)
         {
             return requestAsync("auth", rid, method, parameters);
@@ -239,7 +239,7 @@ namespace ResgateIO.Client
         /// </summary>
         /// <param name="rid">Resource ID.</param>
         /// <param name="method">Method.</param>
-        /// <returns>The resource.</returns>
+        /// <returns>The result.</returns>
         public Task<object> AuthAsync(string rid, string method)
         {
             return AuthAsync(rid, method, null);
@@ -251,7 +251,7 @@ namespace ResgateIO.Client
         /// <param name="rid">Resource ID.</param>
         /// <param name="method">Method.</param>
         /// <param name="parameters">Method parameters.</param>
-        /// <returns>The resource.</returns>
+        /// <returns>The result.</returns>
         public Task<T> AuthAsync<T>(string rid, string method, object parameters)
         {
             return requestAsync<T>("auth", rid, method, parameters);
@@ -262,7 +262,7 @@ namespace ResgateIO.Client
         /// </summary>
         /// <param name="rid">Resource ID.</param>
         /// <param name="method">Method.</param>
-        /// <returns>The resource.</returns>
+        /// <returns>The result.</returns>
         public Task<T> AuthAsync<T>(string rid, string method)
         {
             return AuthAsync<T>(rid, method, null);

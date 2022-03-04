@@ -22,7 +22,7 @@ namespace ResgateIO.Client
 
         public ResResource CreateResource(string rid)
         {
-            return new ResCollection(rid);
+            return new ResCollection(client, rid);
         }
 
         public void InitResource(ResResource resource, JToken data)

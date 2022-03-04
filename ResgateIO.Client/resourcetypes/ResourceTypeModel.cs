@@ -29,7 +29,7 @@ namespace ResgateIO.Client
 
         private ResModelResource defaultModelFactory(ResClient client, string rid)
         {
-            return new ResModel(rid);
+            return new ResModel(client, rid);
         }
 
         public void InitResource(ResResource resource, JToken data)
