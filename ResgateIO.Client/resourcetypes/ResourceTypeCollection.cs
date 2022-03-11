@@ -13,14 +13,23 @@ namespace ResgateIO.Client
 
         public string ResourceProperty { get { return "collections"; } }
 
+        public readonly PatternMap<CollectionFactory> Patterns;
+
         private ResClient client;
 
         public ResourceTypeCollection(ResClient client)
         {
             this.client = client;
+            Patterns = new PatternMap<CollectionFactory>(defaultCollectionFactory);
         }
 
         public ResResource CreateResource(string rid)
+        {
+            CollectionFactory f = Patterns.Get(rid);
+            return f(this.client, rid);
+        }
+
+        private ResCollectionResource defaultCollectionFactory(ResClient client, string rid)
         {
             return new ResCollection(client, rid);
         }

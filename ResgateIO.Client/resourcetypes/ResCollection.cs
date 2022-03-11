@@ -61,9 +61,9 @@ namespace ResgateIO.Client
         /// <param name="method">Method.</param>
         /// <param name="parameters">Method parameters.</param>
         /// <returns>The result.</returns>
-        public Task<T> CallAsync<T>(string method, object parameters)
+        public Task<TResult> CallAsync<TResult>(string method, object parameters)
         {
-            return Client.CallAsync<T>(ResourceID, method, parameters);
+            return Client.CallAsync<TResult>(ResourceID, method, parameters);
         }
 
         /// <summary>
@@ -71,9 +71,9 @@ namespace ResgateIO.Client
         /// </summary>
         /// <param name="method">Method.</param>
         /// <returns>The result.</returns>
-        public Task<T> CallAsync<T>(string method)
+        public Task<TResult> CallAsync<TResult>(string method)
         {
-            return Client.CallAsync<T>(ResourceID, method, null);
+            return Client.CallAsync<TResult>(ResourceID, method, null);
         }
 
         /// <summary>
@@ -103,9 +103,9 @@ namespace ResgateIO.Client
         /// <param name="method">Method.</param>
         /// <param name="parameters">Method parameters.</param>
         /// <returns>The result.</returns>
-        public Task<T> AuthAsync<T>(string method, object parameters)
+        public Task<TResult> AuthAsync<TResult>(string method, object parameters)
         {
-            return Client.AuthAsync<T>(ResourceID, method, parameters);
+            return Client.AuthAsync<TResult>(ResourceID, method, parameters);
         }
 
         /// <summary>
@@ -113,9 +113,9 @@ namespace ResgateIO.Client
         /// </summary>
         /// <param name="method">Method.</param>
         /// <returns>The result.</returns>
-        public Task<T> AuthAsync<T>(string method)
+        public Task<TResult> AuthAsync<TResult>(string method)
         {
-            return Client.AuthAsync<T>(ResourceID, method);
+            return Client.AuthAsync<TResult>(ResourceID, method);
         }
 
         /// <summary>

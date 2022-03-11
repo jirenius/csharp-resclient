@@ -14,17 +14,20 @@ namespace ResgateIO.Client
 
         public string ResourceProperty { get { return "models"; } }
 
+        public readonly PatternMap<ModelFactory> Patterns;
+
         private ResClient client;
 
         public ResourceTypeModel(ResClient client)
         {
             this.client = client;
+            Patterns = new PatternMap<ModelFactory>(defaultModelFactory);
         }
 
         public ResResource CreateResource(string rid)
         {
-            ModelFactory f = defaultModelFactory;
-            return f(this.client, rid) as ResResource;
+            ModelFactory f = Patterns.Get(rid);
+            return f(this.client, rid);
         }
 
         private ResModelResource defaultModelFactory(ResClient client, string rid)

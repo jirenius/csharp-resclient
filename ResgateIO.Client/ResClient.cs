@@ -46,6 +46,9 @@ namespace ResgateIO.Client
         private const string legacyProtocol = "1.1.1";
         private static int legacyProtocolVersion = versionToInt(legacyProtocol);
 
+        private const int resourceTypeModel = 0;
+        private const int resourceTypeCollection = 1;
+
         public ResClient(string hostUrl)
         {
             this.hostUrl = hostUrl;
@@ -82,29 +85,34 @@ namespace ResgateIO.Client
 
         /// <summary>
         /// Registers a model factory for a specific resource pattern.
-        /// The pattern may contain wildcards.
+        /// The pattern may contain wildcards:
+        /// * (asterisk) is a partial wildcard.
+        ///     Eg. "directory.user.*.details"
+        /// > (greater than) is a full wildcard.
+        ///     Eg. "library.books.>"
         /// </summary>
         /// <param name="pattern">Resource name pattern.</param>
         /// <param name="factory">Model factory delegate.</param>
         public void RegisterModelFactory(string pattern, ModelFactory factory)
         {
-            throw new NotImplementedException();
+            var rt = (ResourceTypeModel)resourceTypes[resourceTypeModel];
+            rt.Patterns.Add(pattern, factory);
         }
 
         /// <summary>
         /// Registers a collection factory for a specific resource pattern.
-        /// The pattern may contain wildcards.
+        /// The pattern may contain wildcards:
+        /// * (asterisk) is a partial wildcard.
+        ///     Eg. "directory.user.*.details"
+        /// > (greater than) is a full wildcard.
+        ///     Eg. "library.books.>"
         /// </summary>
         /// <param name="pattern">Resource name pattern.</param>
         /// <param name="factory">Collection factory delegate.</param>
-        //public void RegisterCollectionFactory(string pattern, CollectionFactory factory)
-        //{
-        //    throw new NotImplementedException();
-        //}
-
         public void RegisterCollectionFactory(string pattern, CollectionFactory factory)
         {
-            throw new NotImplementedException();
+            var rt = (ResourceTypeCollection)resourceTypes[resourceTypeCollection];
+            rt.Patterns.Add(pattern, factory);
         }
 
         public async Task ConnectAsync()
