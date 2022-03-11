@@ -48,24 +48,24 @@ namespace ResgateIO.Client.UnitTests
 
             public override void Init(IReadOnlyDictionary<string, object> props)
             {
-                Subject = (props["subject"] as JObject).Value<string>();
-                Sender = (props["sender"] as JObject).Value<string>();
-                Body = (props["body"] as JObject).Value<string>();
+                Subject = props["subject"] as string;
+                Sender = props["sender"] as string;
+                Body = props["body"] as string;
             }
 
             public override void HandleChange(IReadOnlyDictionary<string, object> props)
             {
                 if (props.TryGetValue("subject", out object subject))
                 {
-                    Subject = (subject as JObject).Value<string>();
+                    Subject = subject as string;
                 }
                 if (props.TryGetValue("sender", out object sender))
                 {
-                    Sender = (sender as JObject).Value<string>();
+                    Sender = sender as string;
                 }
                 if (props.TryGetValue("body", out object body))
                 {
-                    Body = (body as JObject).Value<string>();
+                    Body = body as string;
                 }
             }
 

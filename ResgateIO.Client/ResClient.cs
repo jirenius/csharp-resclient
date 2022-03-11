@@ -538,7 +538,7 @@ namespace ResgateIO.Client
                 }
 
                 // Test for action value
-                JToken actionToken = obj["actiona"];
+                JToken actionToken = obj["action"];
                 if (actionToken != null)
                 {
                     if (actionToken.Value<string>() == "delete")
