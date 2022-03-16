@@ -65,6 +65,21 @@ namespace ResgateIO.Client.UnitTests
             Test.AssertEqualJSON(new JObject { { "foo", "bar" } }, model);
         }
 
+
+
+        [Fact]
+        public async Task GetAsync_WithErrorResponse_ThrowsResException()
+        {
+            await ConnectAndHandshake();
+
+            var creqTask = Client.GetAsync("test.model");
+            var req = await WebSocket.GetRequestAsync();
+            req.AssertMethod("subscribe.test.model");
+            req.SendError(new ResError(ResError.CodeNotFound, "Not found"));
+            
+            await Assert.ThrowsAsync<ResException>(async () => await creqTask);
+        }
+
         [Fact]
         public async Task GetAsync_WithCollectionResponse_GetsCollection()
         {

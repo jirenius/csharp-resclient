@@ -491,7 +491,7 @@ namespace ResgateIO.Client
 
         private void tryDelete(CacheItem ci)
         {
-            throw new NotImplementedException();
+            //throw new NotImplementedException();
         }
 
         //private void removeStale(string rid)
