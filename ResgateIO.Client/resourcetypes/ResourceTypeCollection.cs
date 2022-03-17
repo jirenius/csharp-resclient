@@ -36,7 +36,7 @@ namespace ResgateIO.Client
 
         public void InitResource(ResResource resource, JToken data)
         {
-            ResCollection Collection = resource as ResCollection;
+            ResCollectionResource Collection = resource as ResCollectionResource;
             if (Collection == null)
             {
                 throw new InvalidOperationException("Resource not of type ResCollection.");
