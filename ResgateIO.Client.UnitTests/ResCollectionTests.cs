@@ -60,5 +60,40 @@ namespace ResgateIO.Client.UnitTests
             var result = await creqTask2;
             Test.AssertEqualJSON(expected == null ? JValue.CreateNull() : JToken.FromObject(expected), result);
         }
+
+        [Fact]
+        public async Task GetAsync_WithCustomCollectionFactory_GetsCustomCollectionl()
+        {
+            Client.RegisterModelFactory("test.custom.*", (client, rid) => new Test.CustomModel(client, rid));
+            Client.RegisterCollectionFactory("test.custom", (client, rid) => new ResCollection<Test.CustomModel>(client, rid));
+            await ConnectAndHandshake();
+
+            var creqTask = Client.GetAsync("test.custom");
+            var req = await WebSocket.GetRequestAsync();
+            req.AssertMethod("subscribe.test.custom");
+            req.SendResult(new JObject
+            {
+                { "models", new JObject
+                    {
+                        { "test.custom.42", Test.CustomModelData }
+                    }
+                },
+                { "collections", new JObject
+                    {
+                        { "test.custom", new JArray { new JObject { { "rid", "test.custom.42" } } } }
+                    }
+                }
+            });
+            var result = await creqTask;
+            Assert.Equal("test.custom", result.ResourceID);
+            Assert.IsType<ResCollection<Test.CustomModel>>(result);
+            var collection = result as ResCollection<Test.CustomModel>;
+            Assert.Single(collection);
+            Assert.IsType<Test.CustomModel>(collection[0]);
+            var model = collection[0];
+            Assert.Equal("test.custom.42", model.ResourceID);
+            Assert.Equal("foo", model.String);
+            Assert.Equal(42, model.Int);
+        }
     }
 }
