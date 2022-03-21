@@ -8,12 +8,6 @@ using System.Threading.Tasks;
 namespace ResgateIO.Client
 {
 
-    public class ResourceEventArgs : EventArgs
-    {
-        public string ResourceID { get; set; }
-        public string EventName { get; set; }
-    }
-
     public class ResClient : IDisposable
     {
         // Constants
@@ -124,6 +118,8 @@ namespace ResgateIO.Client
             var ws = await wsFactory();
 
             rpc = new ResRpc(ws, serializerSettings);
+            rpc.ResourceEvent += onResourceEvent;
+
 
             protocol = 0;
             // RES protocol version handshake
@@ -156,6 +152,8 @@ namespace ResgateIO.Client
                 protocol = versionToInt(legacyProtocol);
                 ResgateProtocol = legacyProtocol;
             }
+
+            
 
             // this.ws.onopen = this._handleOnopen;
             // this.ws.onerror = this._handleOnerror;
@@ -601,6 +599,40 @@ namespace ResgateIO.Client
                 return 0;
             }
             return v;
+        }
+
+        private void onResourceEvent(object sender, ResourceEventArgs ev)
+        {
+            CacheItem ci;
+            lock (cacheLock)
+            {
+                if (!itemCache.TryGetValue(ev.ResourceID, out ci))
+                {
+                    throw new InvalidOperationException(String.Format("Resource for event not found in cache: {0}", ev.ResourceID));
+                }
+            }
+
+            switch (ev.EventName)
+            {
+                case "change":
+                    // ev = this._handleChangeEvent(cacheItem, event, data.data, false);
+                    break;
+
+                case "add":
+                    //handled = this._handleAddEvent(cacheItem, event, data.data);
+                    break;
+
+                case "remove":
+                    //handled = this._handleRemoveEvent(cacheItem, event, data.data);
+                    break;
+
+                case "unsubscribe":
+                    //handled = this._handleUnsubscribeEvent(cacheItem);
+                    break;
+            }
+
+            ci.Resource.HandleEvent(ev);
+            ResourceEvent?.Invoke(this, ev);
         }
 
         protected virtual void Dispose(bool disposing)

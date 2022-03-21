@@ -30,15 +30,20 @@ namespace ResgateIO.Client.UnitTests
                 Int = Convert.ToInt32(props["int"]);
             }
 
-            public override void HandleChange(IReadOnlyDictionary<string, object> props)
+            public override void HandleEvent(ResourceEventArgs ev)
             {
-                if (props.TryGetValue("string", out object stringValue))
+                switch (ev)
                 {
-                    String = stringValue as string;
-                }
-                if (props.TryGetValue("int", out object intValue))
-                {
-                    Int = Convert.ToInt32(intValue);
+                    case ModelChangeEventArgs changeEv:
+                        if (changeEv.NewValues.TryGetValue("string", out object stringValue))
+                        {
+                            String = stringValue as string;
+                        }
+                        if (changeEv.NewValues.TryGetValue("int", out object intValue))
+                        {
+                            Int = Convert.ToInt32(intValue);
+                        }
+                        break;
                 }
             }
         }

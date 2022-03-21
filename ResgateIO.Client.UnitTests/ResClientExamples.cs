@@ -53,19 +53,24 @@ namespace ResgateIO.Client.UnitTests
                 Body = props["body"] as string;
             }
 
-            public override void HandleChange(IReadOnlyDictionary<string, object> props)
+            public override void HandleEvent(ResourceEventArgs ev)
             {
-                if (props.TryGetValue("subject", out object subject))
+                switch (ev)
                 {
-                    Subject = subject as string;
-                }
-                if (props.TryGetValue("sender", out object sender))
-                {
-                    Sender = sender as string;
-                }
-                if (props.TryGetValue("body", out object body))
-                {
-                    Body = body as string;
+                    case ModelChangeEventArgs changeEv:
+                        if (changeEv.NewValues.TryGetValue("subject", out object subject))
+                        {
+                            Subject = subject as string;
+                        }
+                        if (changeEv.NewValues.TryGetValue("sender", out object sender))
+                        {
+                            Sender = sender as string;
+                        }
+                        if (changeEv.NewValues.TryGetValue("body", out object body))
+                        {
+                            Body = body as string;
+                        }
+                        break;
                 }
             }
 

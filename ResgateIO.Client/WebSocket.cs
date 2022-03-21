@@ -105,13 +105,10 @@ namespace ResgateIO.Client
 
         private void MessageReceived(byte[] msg)
         {
-            if (OnMessage != null)
+            OnMessage?.Invoke(this, new MessageEventArgs
             {
-                OnMessage(this, new MessageEventArgs
-                {
-                    Message = msg
-                });
-            }
+                Message = msg
+            });
         }
 
         public void Dispose()

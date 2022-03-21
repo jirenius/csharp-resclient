@@ -24,7 +24,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="resourcetypes\ResourceEvent.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Include="images\icon.png" Pack="true" PackagePath="\" />
+    <None Include="ResourceEvent.cs" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'netstandard1.6'">

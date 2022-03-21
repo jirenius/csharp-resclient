@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 
 namespace ResgateIO.Client
 {
+
     internal class RpcRequest
     {
         [JsonProperty(PropertyName = "id")]
@@ -27,6 +28,9 @@ namespace ResgateIO.Client
     class ResRpc: IDisposable
     {
         public IWebSocket WebSocket { get { return ws; } }
+
+        // Events
+        public event EventHandler<ResourceEventArgs> ResourceEvent;
 
         private readonly IWebSocket ws;
         private readonly JsonSerializerSettings serializerSettings;
@@ -55,10 +59,14 @@ namespace ResgateIO.Client
                     Console.WriteLine("==> {0}", msg);
                     handleResponse(rpcmsg);
                 }
-                else
+                else if (rpcmsg.Event != null)
                 {
                     Console.WriteLine("--> {0}", msg);
                     handleEvent(rpcmsg);
+                }
+                else
+                {
+                    throw new InvalidOperationException(String.Format("Invalid message from server: {0}", msg));
                 }
             }
             catch (Exception ex)
@@ -91,7 +99,20 @@ namespace ResgateIO.Client
 
         private void handleEvent(MessageDto rpcmsg)
         {
+            // Event
+            var idx = rpcmsg.Event.LastIndexOf('.');
+		    if (idx <  0 || idx == rpcmsg.Event.Length - 1) {
+                throw new InvalidOperationException(String.Format("Malformed event name: {0}", rpcmsg.Event));
+            }
+            var rid = rpcmsg.Event.Substring(0, idx);
 
+
+            ResourceEvent?.Invoke(this, new ResourceEventArgs
+            {
+                ResourceID = rid,
+                EventName = rpcmsg.Event.Substring(idx + 1),
+                Data = rpcmsg.Data,
+            });
         }
 
         public async Task<RequestResult> Request(string method, object parameters)

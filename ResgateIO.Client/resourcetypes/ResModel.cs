@@ -26,6 +26,11 @@ namespace ResgateIO.Client
         /// </summary>
         public ResourceType ResourceType { get { return ResourceType.Model; } }
 
+        /// <summary>
+        /// Resource events.
+        /// </summary>
+        public event EventHandler<ResourceEventArgs> ResourceEvent;
+
         public IEnumerable<string> Keys => ((IReadOnlyDictionary<string, object>)props).Keys;
 
         public IEnumerable<object> Values => ((IReadOnlyDictionary<string, object>)props).Values;
@@ -144,38 +149,30 @@ namespace ResgateIO.Client
         }
 
         /// <summary>
-        /// Updates the model with changed property values.
+        /// Handles incoming events.
         /// </summary>
         /// <remarks>Not to be called directly. Used by ResClient.</remarks>
-        /// <param name="props">Changed properties and their new value.</param>
-        public override void HandleChange(IReadOnlyDictionary<string, object> props)
+        /// <param name="ev">Resource event.</param>
+        public override void HandleEvent(ResourceEventArgs ev)
         {
-            var oldProps = new Dictionary<string, object>(props.Count);
-            foreach (var pair in props)
+            switch (ev)
             {
-                if (this.props.ContainsKey(pair.Key))
-                {
-                    oldProps.Add(pair.Key, this.props[pair.Key]);
-                }
-                if (pair.Value == ResAction.Delete)
-                {
-                    this.props.Remove(pair.Key);
-                }
-                else
-                {
-                    this.props.Add(pair.Key, pair.Value);
-                }
+                case ModelChangeEventArgs changeEv:
+                    foreach (var pair in changeEv.NewValues)
+                    {
+                        if (pair.Value == ResAction.Delete)
+                        {
+                            this.props.Remove(pair.Key);
+                        }
+                        else
+                        {
+                            this.props.Add(pair.Key, pair.Value);
+                        }
+                    }
+                    break;
             }
 
-            EventHandler<ChangeEventArgs> handler = ChangeEvent;
-            if (handler != null)
-            {
-                handler(this, new ChangeEventArgs
-                {
-                    NewProps = props,
-                    OldProps = oldProps
-                });
-            }
+            ResourceEvent?.Invoke(this, ev);
         }
 
         public bool ContainsKey(string key)

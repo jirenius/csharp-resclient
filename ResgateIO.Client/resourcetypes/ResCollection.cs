@@ -18,6 +18,11 @@ namespace ResgateIO.Client
         /// </summary>
         public ResourceType ResourceType { get { return ResourceType.Collection; } }
 
+        /// <summary>
+        /// Resource events.
+        /// </summary>
+        public event EventHandler<ResourceEventArgs> ResourceEvent;
+
         public int Count => ((IReadOnlyCollection<T>)values).Count;
 
         public T this[int index] => ((IReadOnlyList<T>)values)[index];
@@ -133,26 +138,24 @@ namespace ResgateIO.Client
         }
 
         /// <summary>
-        /// Handles an add event by adding a value to the collection.
+        /// Handles incoming events.
         /// </summary>
         /// <remarks>Not to be called directly. Used by ResClient.</remarks>
-        /// <param name="index">Index position of the added value.</param>
-        /// <param name="value">Value being added.</param>
-        public override void HandleAdd(int index, object value)
+        /// <param name="ev">Resource event.</param>
+        public override void HandleEvent(ResourceEventArgs ev)
         {
-            this.values.Insert(index, (T)value);
-            // [TODO] Trigger observables
-        }
+            switch (ev)
+            {
+                case CollectionAddEventArgs addEv:
+                    this.values.Insert(addEv.Index, (T)addEv.Value);
+                    break;
 
-        /// <summary>
-        /// Handles a remove event by removing value from the collection.
-        /// </summary>
-        /// <remarks>Not to be called directly. Used by ResClient.</remarks>
-        /// <param name="index">Index position of the removed value.</param>
-        public override void HandleRemove(int index)
-        {
-            this.values.RemoveAt(index);
-            // [TODO] Trigger observables
+                case CollectionRemoveEventArgs removeEv:
+                    this.values.RemoveAt(removeEv.Index);
+                    break;
+            }
+
+            ResourceEvent?.Invoke(this, ev);
         }
 
         public IEnumerator<T> GetEnumerator()
