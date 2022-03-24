@@ -110,16 +110,28 @@ namespace ResgateIO.Client
             }
         }
 
-        public ResourceEventArgs HandleEvent(ResourceEventArgs ev)
+        /// <summary>
+        /// Gets a cache item from the cache, or throws an exception if it doesn't exist.
+        /// </summary>
+        /// <param name="rid">Resource ID</param>
+        /// <returns>Cache item.</returns>
+        /// <exception cref="InvalidOperationException"></exception>
+        public CacheItem GetItem(string rid)
         {
             CacheItem ci;
             lock (cacheLock)
             {
-                if (!itemCache.TryGetValue(ev.ResourceID, out ci))
+                if (!itemCache.TryGetValue(rid, out ci))
                 {
-                    throw new InvalidOperationException(String.Format("Resource for event not found in cache: {0}", ev.ResourceID));
+                    throw new InvalidOperationException(String.Format("Resourcenot found in cache: {0}", rid));
                 }
             }
+            return ci;
+        }
+
+        public ResourceEventArgs HandleEvent(ResourceEventArgs ev)
+        {
+            CacheItem ci = GetItem(ev.ResourceID);
 
             // Assert that the resource is set.
             // Should not be needed unless the gateway acts up.

@@ -58,11 +58,29 @@ namespace ResgateIO.Client
 
             return values;
         }
+
         public ResourceEventArgs HandleEvent(object resource, ResourceEventArgs ev)
+        {
+            switch (ev.EventName)
+            {
+                case "add":
+                    return handleAddEvent(resource, ev);
+                case "remove":
+                    return handleRemoveEvent(resource, ev);
+            }
+            return ev;
+        }
+
+        private ResourceEventArgs handleAddEvent(object resource, ResourceEventArgs ev)
         {
             return ev;
         }
-        
+
+        private ResourceEventArgs handleRemoveEvent(object resource, ResourceEventArgs ev)
+        {
+            return ev;
+        }
+
         public ResourceEventArgs[] SynchronizeResource(object resource, JToken data)
         {
             throw new NotImplementedException();
