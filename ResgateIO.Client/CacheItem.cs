@@ -9,20 +9,24 @@ namespace ResgateIO.Client
     {
         public ResResource Resource { get; private set; }
         public string ResourceID { get { return rid; } }
+        public ResourceType Type { get; private set; }
         public bool IsSet { get { return completionSource.Task.IsCompleted; } }
         public Task<ResResource> ResourceTask { get { return completionSource.Task; } }
+
+        // Internal resources
+        public object InternalResource { get; private set; }
 
         private TaskCompletionSource<ResResource> completionSource = new TaskCompletionSource<ResResource>();
 
         private readonly string rid;
-        private readonly ResClient client;
+        private readonly ItemCache cache;
         private int directReferences = 0;
         private int references = 0; // Indirect references by other resources
         private int subscriptions = 0; // Direct references through subscriptions
 
-        public CacheItem(ResClient client, string rid)
+        public CacheItem(ItemCache cache, string rid)
         {
-            this.client = client;
+            this.cache = cache;
             this.rid = rid;
 
             //var r = new WeakReference(new List<string>(), true);
@@ -57,9 +61,15 @@ namespace ResgateIO.Client
 
         }
 
-        public void SetResource(ResResource resource)
+        public void SetResource(ResResource resource, ResourceType resourceType)
         {
             Resource = resource;
+            Type = resourceType;
+        }
+
+        public void SetInternalResource(object resource)
+        {
+            InternalResource = resource;
         }
 
         public void CompleteTask()

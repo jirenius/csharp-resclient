@@ -10,9 +10,9 @@ namespace ResgateIO.Client
     /// </summary>
     public enum ResourceType
     {
-        Model,
-        Collection,
-        Error
+        Model = 0,
+        Collection = 1,
+        Error = 2
     }
 
     internal interface IResourceType
@@ -35,17 +35,30 @@ namespace ResgateIO.Client
         ResResource CreateResource(string rid);
 
         /// <summary>
-        /// Initializes a ResResource created with CreateResource..
+        /// Initializes a ResResource created with CreateResource.
+        /// Returns an internal representation of the resource.
         /// </summary>
         /// <param name="resource">Resource.</param>
         /// <param name="data">Resource data.</param>
-        void InitResource(ResResource resource, JToken data);
+        /// <returns>Returns an internal representation of the resource.</returns>
+        object InitResource(ResResource resource, JToken data);
+
+
 
         /// <summary>
-        /// Synchronize a ResResource created with CreateResource.
+        /// Handles a resource event and updates the internal resource returned from InitResource if needed.
+        /// </summary>
+        /// <param name="resource">Resource.</param>
+        /// <param name="ev">Resource event.</param>
+        /// <returns>Returns an the event to pass on to event handlers.</returns>
+        ResourceEventArgs HandleEvent(object resource, ResourceEventArgs ev);
+
+        /// <summary>
+        /// Synchronize the internal resource returned from InitResource.
         /// </summary>
         /// <param name="resource">Resource.</param>
         /// <param name="data">Resource data.</param>
-        void SynchronizeResource(ResResource resource, JToken data);
+        /// <returns>Returns a sequence of events to produce the new state.</returns>
+        ResourceEventArgs[] SynchronizeResource(object resource, JToken data);
     }
 }

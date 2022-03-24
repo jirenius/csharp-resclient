@@ -15,18 +15,18 @@ namespace ResgateIO.Client
 
         public readonly PatternMap<CollectionFactory> Patterns;
 
-        private ResClient client;
+        private ItemCache cache;
 
-        public ResourceTypeCollection(ResClient client)
+        public ResourceTypeCollection(ItemCache cache)
         {
-            this.client = client;
+            this.cache = cache;
             Patterns = new PatternMap<CollectionFactory>(defaultCollectionFactory);
         }
 
         public ResResource CreateResource(string rid)
         {
             CollectionFactory f = Patterns.Get(rid);
-            return f(this.client, rid);
+            return f(cache.Client, rid);
         }
 
         private ResCollectionResource defaultCollectionFactory(ResClient client, string rid)
@@ -34,7 +34,7 @@ namespace ResgateIO.Client
             return new ResCollection(client, rid);
         }
 
-        public void InitResource(ResResource resource, JToken data)
+        public object InitResource(ResResource resource, JToken data)
         {
             ResCollectionResource Collection = resource as ResCollectionResource;
             if (Collection == null)
@@ -51,13 +51,19 @@ namespace ResgateIO.Client
             var values = new List<object>(arr.Count);
             foreach (JToken value in arr)
             {
-                values.Add(client.ParseValue(value, true));
+                values.Add(cache.ParseValue(value, true));
             }
 
             Collection.Init(values);
-        }
 
-        public void SynchronizeResource(ResResource resource, JToken data)
+            return values;
+        }
+        public ResourceEventArgs HandleEvent(object resource, ResourceEventArgs ev)
+        {
+            return ev;
+        }
+        
+        public ResourceEventArgs[] SynchronizeResource(object resource, JToken data)
         {
             throw new NotImplementedException();
         }

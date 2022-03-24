@@ -14,8 +14,6 @@ namespace ResgateIO.Client
         /// <value>Supported RES protocol version.</value>
         public const string ProtocolVersion = "1.2.1";
 
-        public static object DeleteValue = new object();
-
         // Events
         public event EventHandler<ResourceEventArgs> ResourceEvent;
 
@@ -31,10 +29,12 @@ namespace ResgateIO.Client
         private JsonSerializerSettings serializerSettings;
         private int protocol;
         private bool disposedValue;
-        private Dictionary<string, CacheItem> itemCache = new Dictionary<string, CacheItem>();
+        //private Dictionary<string, CacheItem> itemCache = new Dictionary<string, CacheItem>();
+
+        private ItemCache cache;
         //private HashSet<string> stale = new HashSet<string>();
-        private object cacheLock = new object();
-        private IResourceType[] resourceTypes;
+        //private object cacheLock = new object();
+        //private IResourceType[] resourceTypes;
 
         // Private constants
         private const string legacyProtocol = "1.1.1";
@@ -47,22 +47,18 @@ namespace ResgateIO.Client
         {
             this.hostUrl = hostUrl;
             this.wsFactory = createWebSocket;
-            createResourceTypes();
+            createItemCache();
         }
 
         public ResClient(Func<Task<IWebSocket>> wsFactory)
         {
             this.wsFactory = wsFactory;
-            createResourceTypes();
+            createItemCache();
         }
 
-        private void createResourceTypes()
+        private void createItemCache()
         {
-             resourceTypes = new IResourceType[]
-             {
-                 new ResourceTypeModel(this),
-                 new ResourceTypeCollection(this)
-             };
+            cache = new ItemCache(this);
         }
 
         /// <summary>
@@ -89,8 +85,7 @@ namespace ResgateIO.Client
         /// <param name="factory">Model factory delegate.</param>
         public void RegisterModelFactory(string pattern, ModelFactory factory)
         {
-            var rt = (ResourceTypeModel)resourceTypes[resourceTypeModel];
-            rt.Patterns.Add(pattern, factory);
+            cache.RegisterModelFactory(pattern, factory);
         }
 
         /// <summary>
@@ -105,8 +100,7 @@ namespace ResgateIO.Client
         /// <param name="factory">Collection factory delegate.</param>
         public void RegisterCollectionFactory(string pattern, CollectionFactory factory)
         {
-            var rt = (ResourceTypeCollection)resourceTypes[resourceTypeCollection];
-            rt.Patterns.Add(pattern, factory);
+            cache.RegisterCollectionFactory(pattern, factory);
         }
 
         public async Task ConnectAsync()
@@ -166,20 +160,20 @@ namespace ResgateIO.Client
         /// </summary>
         /// <param name="rid">Resource ID.</param>
         /// <returns>The resource.</returns>
-        public async Task<ResResource> GetAsync(string rid)
+        public Task<ResResource> GetAsync(string rid)
         {
-            CacheItem ci;
-            lock (cacheLock)
-            {
-                if (!itemCache.TryGetValue(rid, out ci))
-                {
-                    ci = new CacheItem(this, rid);
-                    itemCache[rid] = ci;
-                    Task _ = subscribeAsync(ci);
-                }
-            }
+            CacheItem ci = cache.GetOrSubscribe(rid, subscribe);
+            //lock (cacheLock)
+            //{
+            //    if (!itemCache.TryGetValue(rid, out ci))
+            //    {
+            //        ci = new CacheItem(this, rid);
+            //        itemCache[rid] = ci;
+            //        Task _ = subscribeAsync(ci);
+            //    }
+            //}
 
-            return await ci.ResourceTask;
+            return ci.ResourceTask;
         }
 
         /// <summary>
@@ -299,17 +293,8 @@ namespace ResgateIO.Client
             if (r.ContainsKey("rid"))
             {
                 var resourceID = (string)r["rid"];
-                
-                CacheItem ci;
-                lock (cacheLock)
-                {
-                    cacheResources(result.Result);
-                    if (!itemCache.TryGetValue(resourceID, out ci))
-                    {
-                        throw new ResException(String.Format("Resource not found in cache: {0}", rid));
-                    }
-                    ci.AddSubscription(1);
-                }
+
+                CacheItem ci = cache.AddResourcesAndSubscribe(result.Result, resourceID);
                 return ci.Resource;
             }
 
@@ -337,7 +322,7 @@ namespace ResgateIO.Client
         }
 
         // _subscribe
-        private async Task subscribeAsync(CacheItem ci)
+        private async void subscribe(CacheItem ci)
         {
             var rid = ci.ResourceID;
             ci.AddSubscription(1);
@@ -350,211 +335,12 @@ namespace ResgateIO.Client
             catch (Exception ex)
             {
                 ci.AddSubscription(-1);
-                tryDelete(ci);
+                cache.TryDelete(ci);
                 ci.TrySetException(ex);
                 throw ex;
             }
 
-            lock (cacheLock)
-            {
-                cacheResources(result.Result);
-            }
-        }
-
-        /// <summary>
-        /// Adds a resources from a request result to the cache.
-        /// The cacheLock must be held before call.
-        /// </summary>
-        /// <param name="result">Request result</param>
-        private void cacheResources(JToken result)
-        {
-            if (result == null)
-            {
-                return;
-            }
-
-            JObject r = result as JObject;
-            if (r == null)
-            {
-                return;
-            }
-
-            JObject[] typeResources = new JObject[resourceTypes.Length];
-            Dictionary<string, JToken>[] typeSync = new Dictionary<string, JToken>[resourceTypes.Length];
-
-            // Create empty resources for missing ones, and a dictionary of already existing resources to be synchronized.
-            for (int i = 0; i < resourceTypes.Length; i++) {
-                IResourceType type = resourceTypes[i];
-                JProperty resourceProp = r.Property(type.ResourceProperty);
-                if (resourceProp != null)
-                {
-                    JObject resources = resourceProp.Value as JObject;
-                    if (resources != null)
-                    {
-                        typeResources[i] = resources;
-                        typeSync[i] = createResources(resources, type);
-                    }
-                }
-            }
-
-            // Initialize new resources with data
-            for (int i = 0; i < resourceTypes.Length; i++)
-            {
-                IResourceType type = resourceTypes[i];
-                JObject resources = typeResources[i];
-                if (resources != null)
-                {
-                    var sync = typeSync[i];
-                    foreach (JProperty prop in resources.Properties())
-                    {
-                        string rid = prop.Name;
-                        // Only initialize if not set for synchronization
-                        if (sync == null || !sync.ContainsKey(rid))
-                        {
-                            type.InitResource(itemCache[rid].Resource, prop.Value);
-                        }
-                    }
-                }
-            }
-
-            // Synchronize stale resources with new data
-            for (int i = 0; i < resourceTypes.Length; i++)
-            {
-                var sync = typeSync[i];
-                if (sync != null)
-                {
-                    IResourceType type = resourceTypes[i];
-                    foreach (KeyValuePair<string, JToken> pair in sync)
-                    {
-                        type.SynchronizeResource(itemCache[pair.Key].Resource, pair.Value);
-                    }
-                }
-            }
-
-            // Complete all resource tasks
-            for (int i = 0; i < resourceTypes.Length; i++)
-            {
-                IResourceType type = resourceTypes[i];
-                JObject resources = typeResources[i];
-                if (resources != null)
-                {
-                    foreach (JProperty prop in resources.Properties())
-                    {
-                        string rid = prop.Name;
-                        itemCache[rid].CompleteTask();
-                    }
-                }
-            }
-        }
-
-        private Dictionary<string, JToken> createResources(JObject resources, IResourceType type)
-        {
-            Dictionary<string, JToken> sync = null;
-
-            foreach (JProperty prop in resources.Properties())
-            {
-                string rid = prop.Name;
-                CacheItem ci = null;
-                if (!itemCache.TryGetValue(rid, out ci))
-                {
-                    // If the resource is not cached since before, create a new cache item for it.
-                    ci = new CacheItem(this, rid);
-                    itemCache[rid] = ci;
-                }
-                else
-                {
-                    // If the resource was cached, it might have been stale.
-                    // removeStale(rid)
-                }
-
-                // If it is set since before, it is stale and needs to be updated
-                if (ci.IsSet)
-                {
-                    if (ci.Resource.Type != type.ResourceType)
-                    {
-                        throw new InvalidOperationException("Resource type inconsistency");
-                    }
-
-                    sync = sync ?? new Dictionary<string, JToken>();
-                    sync[rid] = prop.Value;
-                }
-                else
-                {
-                    ci.SetResource(type.CreateResource(rid));
-                }
-            }
-
-            return sync;
-        }
-
-        private void tryDelete(CacheItem ci)
-        {
-            //throw new NotImplementedException();
-        }
-
-        //private void removeStale(string rid)
-        //{
-        //    stale.Remove(rid);
-        //}
-
-        internal object ParseValue(JToken value, bool addIndirect)
-        {
-            if (value.Type == JTokenType.Null)
-            {
-                return null;
-            }
-
-            var obj = value as JObject;
-            if (obj != null)
-            {
-                // Test for resource reference
-                JToken ridToken = obj["rid"];
-                if (ridToken != null)
-                {
-                    var rid = ridToken.Value<string>();
-
-                    // Test for soft reference
-                    JToken softToken = obj["soft"];
-                    if (softToken != null && softToken.Value<bool>())
-                    {
-                        return new ResRef(rid);
-                    }
-
-                    CacheItem item = itemCache[rid];
-                    if (addIndirect)
-                    {
-                        item.AddReference(1);
-                    }
-                    return item.Resource;
-                }
-
-                // Test for data value
-                JToken dataToken = obj["data"];
-                if (dataToken != null)
-                {
-                    return dataToken;
-                }
-
-                // Test for action value
-                JToken actionToken = obj["action"];
-                if (actionToken != null)
-                {
-                    if (actionToken.Value<string>() == "delete")
-                    {
-                        return ResClient.DeleteValue;
-                    }
-                }
-            }
-            else
-            {
-                var val = value as JValue;
-                if (val != null)
-                {
-                    return val.Value;
-                }
-            }
-
-            throw new InvalidOperationException("Invalid RES value: " + value.ToString(Formatting.None));
+            cache.AddResources(result.Result);
         }
 
         // _send
@@ -603,35 +389,7 @@ namespace ResgateIO.Client
 
         private void onResourceEvent(object sender, ResourceEventArgs ev)
         {
-            CacheItem ci;
-            lock (cacheLock)
-            {
-                if (!itemCache.TryGetValue(ev.ResourceID, out ci))
-                {
-                    throw new InvalidOperationException(String.Format("Resource for event not found in cache: {0}", ev.ResourceID));
-                }
-            }
-
-            switch (ev.EventName)
-            {
-                case "change":
-                    // ev = this._handleChangeEvent(cacheItem, event, data.data, false);
-                    break;
-
-                case "add":
-                    //handled = this._handleAddEvent(cacheItem, event, data.data);
-                    break;
-
-                case "remove":
-                    //handled = this._handleRemoveEvent(cacheItem, event, data.data);
-                    break;
-
-                case "unsubscribe":
-                    //handled = this._handleUnsubscribeEvent(cacheItem);
-                    break;
-            }
-
-            ci.Resource.HandleEvent(ev);
+            ev = cache.HandleEvent(ev);
             ResourceEvent?.Invoke(this, ev);
         }
 
