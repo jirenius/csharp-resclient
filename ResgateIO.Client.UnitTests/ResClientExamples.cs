@@ -117,15 +117,23 @@ namespace ResgateIO.Client.UnitTests
             var model = await client.GetAsync("example.model") as ResModel;
 
             // Listening for model change
-            model.ChangeEvent += model_ChangeEvent;
+            model.ResourceEvent += model_ResourceEvent;
             await Task.Delay(1000);
             // Stop listening for model change
-            model.ChangeEvent -= model_ChangeEvent;
+            model.ResourceEvent -= model_ResourceEvent;
         }
 
-        private void model_ChangeEvent(object sender, ChangeEventArgs e)
+        private void model_ResourceEvent(object sender, ResourceEventArgs e)
         {
-            Console.WriteLine("Model change");
+            switch (e)
+            {
+                case ModelChangeEventArgs changeEvent:
+                    Console.WriteLine("Model change event");
+                    break;
+                default:
+                    Console.WriteLine("Custom event: ", e.EventName);
+                    break;
+            }
         }
 
         private void client_ResourceEvent(object sender, ResourceEventArgs e)

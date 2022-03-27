@@ -142,7 +142,14 @@ namespace ResgateIO.Client
 
             var type = resourceTypes[(int)ci.Type];
             ev = type.HandleEvent(ci.InternalResource, ev);
-            ci.Resource.HandleEvent(ev);
+            try
+            {
+                ci.Resource.HandleEvent(ev);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(String.Format("Exception on handling {0} event for resource {1}: {2}", ev.EventName, ev.ResourceID, ex.Message));
+            }
             return ev;
         }
 
@@ -197,7 +204,9 @@ namespace ResgateIO.Client
                         // Only initialize if not set for synchronization
                         if (sync == null || !sync.ContainsKey(rid))
                         {
-                            type.InitResource(itemCache[rid].Resource, prop.Value);
+                            CacheItem ci = itemCache[rid];
+                            ci.SetInternalResource(type.InitResource(ci.Resource, prop.Value));
+
                         }
                     }
                 }

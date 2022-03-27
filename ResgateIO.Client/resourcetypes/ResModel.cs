@@ -19,7 +19,6 @@ namespace ResgateIO.Client
     public class ResModel : ResModelResource, IReadOnlyDictionary<string, object>
     {
         private Dictionary<string, object> props = null;
-        public event EventHandler<ChangeEventArgs> ChangeEvent;
 
         /// <summary>
         /// Resource type.
@@ -166,7 +165,7 @@ namespace ResgateIO.Client
                         }
                         else
                         {
-                            this.props.Add(pair.Key, pair.Value);
+                            this.props[pair.Key] = pair.Value;
                         }
                     }
                     break;

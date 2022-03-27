@@ -106,7 +106,7 @@ namespace ResgateIO.Client
                 return null;
             }
 
-            // Remove indirect reference to resources no longer referenced in the  model
+            // Remove indirect reference to resources no longer referenced in the model
             foreach (KeyValuePair<string, int> pair in indirect)
             {
                 if (pair.Value != 0)
