@@ -73,12 +73,79 @@ namespace ResgateIO.Client
 
         private ResourceEventArgs handleAddEvent(object resource, ResourceEventArgs ev)
         {
-            return ev;
+            // Cache new resources if available
+            cache.AddResources(ev.Data);
+
+            var collection = (List<object>)resource;
+
+            JObject data = ev.Data as JObject;
+            if (data == null)
+            {
+                throw new InvalidOperationException("Add event data is not a json object.");
+            }
+
+            JToken valueToken = data["value"];
+            if (valueToken == null)
+            {
+                throw new InvalidOperationException("Add event missing value property.");
+            }
+            JToken idxToken = data["idx"];
+            if (idxToken == null)
+            {
+                throw new InvalidOperationException("Add event missing idx property.");
+            }
+            int idx = idxToken.Value<int>();
+
+            var value = cache.ParseValue(valueToken, true);
+
+            collection.Insert(idx, value);
+
+            return new CollectionAddEventArgs
+            {
+                ResourceID = ev.ResourceID,
+                EventName = ev.EventName,
+                Data = ev.Data,
+                Index = idx,
+                Value = value,
+            };
         }
 
         private ResourceEventArgs handleRemoveEvent(object resource, ResourceEventArgs ev)
         {
-            return ev;
+            var collection = (List<object>)resource;
+
+            JObject data = ev.Data as JObject;
+            if (data == null)
+            {
+                throw new InvalidOperationException("Remove event data is not a json object.");
+            }
+
+            JToken idxToken = data["idx"];
+            if (idxToken == null)
+            {
+                throw new InvalidOperationException("Remove event missing idx property.");
+            }
+            int idx = idxToken.Value<int>();
+
+            var value = collection[idx];
+            collection.RemoveAt(idx);
+
+            var resresource = value as ResResource;
+            if (resresource != null)
+            {
+                var ci = cache.GetItem(resresource.ResourceID);
+                ci.AddReference(-1);
+                cache.TryDelete(ci);
+            };
+
+            return new CollectionRemoveEventArgs
+            {
+                ResourceID = ev.ResourceID,
+                EventName = ev.EventName,
+                Data = ev.Data,
+                Index = idx,
+                Value = value,
+            };
         }
 
         public ResourceEventArgs[] SynchronizeResource(object resource, JToken data)

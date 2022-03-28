@@ -95,5 +95,87 @@ namespace ResgateIO.Client.UnitTests
             Assert.Equal("foo", model.String);
             Assert.Equal(42, model.Int);
         }
+
+        public static IEnumerable<object[]> AddEvent_PrimitiveValue_UpdatesCollection_Data => new List<object[]>
+        {
+            // Change single value
+            new object[] { 0, "D", new JArray { "D", "A", "B", "C" } },
+            new object[] { 1, "D", new JArray { "A", "D", "B", "C" } },
+            new object[] { 2, "D", new JArray { "A", "B", "D", "C" } },
+            new object[] { 3, "D", new JArray { "A", "B", "C", "D" } },
+        };
+
+        [Theory, MemberData(nameof(AddEvent_PrimitiveValue_UpdatesCollection_Data))]
+        public async Task AddEvent_PrimitiveValue_UpdatesCollection(int addIndex, string addValue, object expected)
+        {
+            await ConnectAndHandshake();
+            var creqTask1 = Client.GetAsync("test.collection");
+            var req1 = await WebSocket.GetRequestAsync();
+            req1.AssertMethod("subscribe.test.collection");
+            req1.SendResult(new JObject { { "collections", new JObject {
+                { "test.collection", new JArray { "A", "B", "C" } }
+            } } });
+            var collection1 = await creqTask1 as ResCollection;
+
+            var completionSource = new TaskCompletionSource<ResourceEventArgs>();
+            EventHandler<ResourceEventArgs> h = (object sender, ResourceEventArgs e) => completionSource.SetResult(e);
+            collection1.ResourceEvent += h;
+
+            byte[] eventMsg = System.Text.Encoding.UTF8.GetBytes("{\"event\":\"test.collection.add\",\"data\":{\"idx\":" + addIndex.ToString() + ",\"value\":\"" + addValue + "\"}}");
+            WebSocket.SendMessage(eventMsg);
+
+            var ev = await completionSource.Task;
+
+            collection1.ResourceEvent -= h;
+
+            Assert.IsType<CollectionAddEventArgs>(ev);
+            var addEv = (CollectionAddEventArgs)ev;
+
+            Assert.Equal(addIndex, addEv.Index);
+            Assert.Equal(addValue, addEv.Value);
+            Test.AssertEqualJSON(expected, collection1);
+        }
+
+
+
+        public static IEnumerable<object[]> RemoveEvent_PrimitiveValue_UpdatesCollection_Data => new List<object[]>
+        {
+            // Change single value
+            new object[] { 0, "A", new JArray { "B", "C", "D" } },
+            new object[] { 1, "B", new JArray { "A", "C", "D" } },
+            new object[] { 2, "C", new JArray { "A", "B", "D" } },
+            new object[] { 3, "D", new JArray { "A", "B", "C" } },
+        };
+
+        [Theory, MemberData(nameof(RemoveEvent_PrimitiveValue_UpdatesCollection_Data))]
+        public async Task RemoveEvent_PrimitiveValue_UpdatesCollection(int addIndex, string expectedRemoveValue, object expected)
+        {
+            await ConnectAndHandshake();
+            var creqTask1 = Client.GetAsync("test.collection");
+            var req1 = await WebSocket.GetRequestAsync();
+            req1.AssertMethod("subscribe.test.collection");
+            req1.SendResult(new JObject { { "collections", new JObject {
+                { "test.collection", new JArray { "A", "B", "C", "D" } }
+            } } });
+            var collection1 = await creqTask1 as ResCollection;
+
+            var completionSource = new TaskCompletionSource<ResourceEventArgs>();
+            EventHandler<ResourceEventArgs> h = (object sender, ResourceEventArgs e) => completionSource.SetResult(e);
+            collection1.ResourceEvent += h;
+
+            byte[] eventMsg = System.Text.Encoding.UTF8.GetBytes("{\"event\":\"test.collection.remove\",\"data\":{\"idx\":" + addIndex.ToString() + "}}");
+            WebSocket.SendMessage(eventMsg);
+
+            var ev = await completionSource.Task;
+
+            collection1.ResourceEvent -= h;
+
+            Assert.IsType<CollectionRemoveEventArgs>(ev);
+            var removeEv = (CollectionRemoveEventArgs)ev;
+
+            Assert.Equal(addIndex, removeEv.Index);
+            Assert.Equal(expectedRemoveValue, removeEv.Value);
+            Test.AssertEqualJSON(expected, collection1);
+        }
     }
 }

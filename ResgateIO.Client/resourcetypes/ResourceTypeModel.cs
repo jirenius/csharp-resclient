@@ -50,7 +50,7 @@ namespace ResgateIO.Client
             JObject data = ev.Data as JObject;
             if (data == null)
             {
-                throw new InvalidOperationException("Model data is not a json object.");
+                throw new InvalidOperationException("Change event data is not a json object.");
             }
 
             JObject obj = data["values"] as JObject;
