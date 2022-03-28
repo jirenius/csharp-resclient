@@ -42,6 +42,11 @@ namespace ResgateIO.Client
             //}
         }
 
+        public void ClearSubscriptions()
+        {
+            AddSubscription(-subscriptions);
+        }
+
         public void AddReference(int delta)
         {
             this.references += delta;

@@ -12,6 +12,11 @@ namespace ResgateIO.Client
         public JToken Data { get; set; }
     }
 
+    public class ResourceUnsubscribeEventArgs : ResourceEventArgs
+    {
+        public ResError Reason { get; set; }
+    }
+
     public class ModelChangeEventArgs : ResourceEventArgs
     {
         public IReadOnlyDictionary<string, object> NewValues { get; set; }

@@ -123,7 +123,7 @@ namespace ResgateIO.Client
             {
                 if (!itemCache.TryGetValue(rid, out ci))
                 {
-                    throw new InvalidOperationException(String.Format("Resourcenot found in cache: {0}", rid));
+                    throw new InvalidOperationException(String.Format("Resource not found in cache: {0}", rid));
                 }
             }
             return ci;
@@ -140,8 +140,16 @@ namespace ResgateIO.Client
                 return null;
             }
 
-            var type = resourceTypes[(int)ci.Type];
-            ev = type.HandleEvent(ci.InternalResource, ev);
+            if (ev.EventName == "unsubscribe")
+            {
+                ev = handleUnsubscribeEvent(ci, ev);
+            }
+            else
+            {
+                var type = resourceTypes[(int)ci.Type];
+                ev = type.HandleEvent(ci.InternalResource, ev);
+            }
+
             if (ev != null)
             {
                 try
@@ -343,6 +351,35 @@ namespace ResgateIO.Client
             }
 
             throw new InvalidOperationException("Invalid RES value: " + value.ToString(Formatting.None));
+        }
+
+        private ResourceEventArgs handleUnsubscribeEvent(CacheItem ci, ResourceEventArgs ev)
+        {
+            ci.ClearSubscriptions();
+            TryDelete(ci);
+
+            ResError reason = null;
+            JObject data = ev.Data as JObject;
+            if (data != null)
+            {
+                JToken reasonToken = data["reason"];
+                if (reasonToken != null)
+                {
+                    reason = reasonToken.ToObject<ResError>();
+                }
+            }
+
+            if (reason == null) {
+                reason = new ResError("Missing unsubscribe reason.");
+            }
+
+            return new ResourceUnsubscribeEventArgs
+            {
+                ResourceID = ev.ResourceID,
+                EventName = ev.EventName,
+                Data = ev.Data,
+                Reason = reason,
+            };
         }
 
     }
