@@ -390,7 +390,10 @@ namespace ResgateIO.Client
         private void onResourceEvent(object sender, ResourceEventArgs ev)
         {
             ev = cache.HandleEvent(ev);
-            ResourceEvent?.Invoke(this, ev);
+            if (ev != null)
+            {
+                ResourceEvent?.Invoke(this, ev);
+            }
         }
 
         protected virtual void Dispose(bool disposing)

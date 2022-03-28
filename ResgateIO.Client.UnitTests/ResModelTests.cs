@@ -88,11 +88,18 @@ namespace ResgateIO.Client.UnitTests
 
         public static IEnumerable<object[]> ChangeEvent_UpdatesModel_Data => new List<object[]>
         {
-            new object[] { "{\"foo\":\"baz\"}", new JObject { { "foo", "baz" }, { "int", 42 } } },
+            // Change single value
+            new object[] { "{\"foo\":\"baz\"}", new { foo = "bar" }, new { foo = "baz" }, new JObject { { "foo", "baz" }, { "int", 42 } } },
+            // Delete single value
+            new object[] { "{\"foo\":{\"action\":\"delete\"}}", new { foo = "bar" }, new { foo = ResAction.Delete }, new JObject { { "int", 42 } } },
+            // Create new value
+            new object[] { "{\"new\":true}", new JObject { { "new", ResAction.Delete } }, new JObject { { "new", true } }, new JObject { { "foo", "bar" }, { "int", 42 }, { "new", true } } },
+            // Change multiple values
+            new object[] { "{\"foo\":\"baz\",\"int\":12}",new JObject { { "foo", "bar" }, { "int", 42 } },new JObject { { "foo", "baz" }, { "int", 12 } }, new JObject { { "foo", "baz" }, { "int", 12 } } },
         };
 
         [Theory, MemberData(nameof(ChangeEvent_UpdatesModel_Data))]
-        public async Task ChangeEvent_UpdatesModel(string changeData, object expected)
+        public async Task ChangeEvent_UpdatesModel(string changeData, object oldValues, object newValues, object expected)
         {
             await ConnectAndHandshake();
             var creqTask1 = Client.GetAsync("test.model");
@@ -110,27 +117,57 @@ namespace ResgateIO.Client.UnitTests
             EventHandler<ResourceEventArgs> h = (object sender, ResourceEventArgs e) => completionSource.SetResult(e);
             model1.ResourceEvent += h;
 
-
             byte[] eventMsg = System.Text.Encoding.UTF8.GetBytes("{\"event\":\"test.model.change\",\"data\":{\"values\":" + changeData + "}}");
             WebSocket.SendMessage(eventMsg);
 
             var ev = await completionSource.Task;
 
+            model1.ResourceEvent -= h;
+
             Assert.IsType<ModelChangeEventArgs>(ev);
+            var changeEv = (ModelChangeEventArgs)ev;
+
+
+            Test.AssertEqualJSON(oldValues, changeEv.OldValues);
+            Test.AssertEqualJSON(newValues, changeEv.NewValues);
+            Test.AssertEqualJSON(expected, model1);
+        }
+
+        [Fact]
+        public async Task GetAsync_ChangeEventWithNoChange_TriggersNoEvent()
+        {
+            await ConnectAndHandshake();
+            var creqTask1 = Client.GetAsync("test.model");
+            var req1 = await WebSocket.GetRequestAsync();
+            req1.AssertMethod("subscribe.test.model");
+            req1.SendResult(new JObject { { "models", new JObject {
+                { "test.model", new JObject {
+                    { "foo", "bar" },
+                    { "int", 42 },
+                } }
+            } } });
+            var model1 = await creqTask1 as ResModel;
+
+            var completionSource = new TaskCompletionSource<ResourceEventArgs>();
+            EventHandler<ResourceEventArgs> h = (object sender, ResourceEventArgs e) => completionSource.SetResult(e);
+            model1.ResourceEvent += h;
+
+            byte[] eventMsg1 = System.Text.Encoding.UTF8.GetBytes("{\"event\":\"test.model.change\",\"data\":{\"values\":{\"foo\":\"bar\"}}}");
+            WebSocket.SendMessage(eventMsg1);
+
+            byte[] eventMsg2 = System.Text.Encoding.UTF8.GetBytes("{\"event\":\"test.model.change\",\"data\":{\"values\":{\"int\":12}}}");
+            WebSocket.SendMessage(eventMsg2);
+
+            var ev = await completionSource.Task;
 
             model1.ResourceEvent -= h;
 
+            Assert.IsType<ModelChangeEventArgs>(ev);
+            var changeEv = (ModelChangeEventArgs)ev;
 
-            //var req2 = await WebSocket.GetRequestAsync();
-            //req2.AssertMethod("auth.test.model.method");
-            //req2.SendResult(new JObject { { "payload", JToken.Parse(payload) } });
-            //var result = await creqTask2;
-            //Test.AssertEqualJSON(expected == null ? JValue.CreateNull() : JToken.FromObject(expected), result);
-        }
-
-        private void Model1_ResourceEvent(object sender, ResourceEventArgs e)
-        {
-            throw new NotImplementedException();
+            Test.AssertEqualJSON( new JObject { { "int", 42 } }, changeEv.OldValues);
+            Test.AssertEqualJSON(new JObject { { "int", 12 } }, changeEv.NewValues);
+            Test.AssertEqualJSON(new JObject { { "foo", "bar" }, { "int", 12 } }, model1);
         }
     }
 }

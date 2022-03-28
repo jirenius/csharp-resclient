@@ -81,7 +81,7 @@ namespace ResgateIO.Client
                     // Try update property
                     if (model.TryGetValue(prop.Name, out var oldValue))
                     {
-                        if (oldValue != newValue)
+                        if (!Object.Equals(oldValue, newValue))
                         {
                             newProps[prop.Name] = newValue;
                             oldProps[prop.Name] = oldValue;

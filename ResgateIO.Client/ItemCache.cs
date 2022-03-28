@@ -142,13 +142,16 @@ namespace ResgateIO.Client
 
             var type = resourceTypes[(int)ci.Type];
             ev = type.HandleEvent(ci.InternalResource, ev);
-            try
+            if (ev != null)
             {
-                ci.Resource.HandleEvent(ev);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine(String.Format("Exception on handling {0} event for resource {1}: {2}", ev.EventName, ev.ResourceID, ex.Message));
+                try
+                {
+                    ci.Resource.HandleEvent(ev);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine(String.Format("Exception on handling {0} event for resource {1}: {2}", ev.EventName, ev.ResourceID, ex.Message));
+                }
             }
             return ev;
         }
