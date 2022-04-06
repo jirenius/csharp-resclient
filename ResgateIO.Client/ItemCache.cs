@@ -101,11 +101,39 @@ namespace ResgateIO.Client
                     ci = new CacheItem(this, rid);
                     itemCache[rid] = ci;
                 }
-
+                ci.AddSubscription(1);
                 subscribe(ci);
             }
 
             return ci;
+        }
+
+        public async Task Unsubscribe(string rid, Func<string, Task> unsubscribe)
+        {
+            CacheItem ci;
+            lock (cacheLock)
+            {
+                if (!itemCache.TryGetValue(rid, out ci))
+                {
+                    throw new InvalidOperationException(String.Format("Resource not found in cache: {0}", rid));
+                }
+                if (ci.Subscriptions == 0)
+                {
+                    throw new InvalidOperationException(String.Format("Resource not directly subscribed: {0}", rid));
+                }
+
+                ci.AddSubscription(-1);
+            }
+
+            try
+            {
+                await unsubscribe(ci.ResourceID);
+            }
+            catch (Exception ex)
+            {
+                ci.AddSubscription(1);
+                throw ex;
+            }
         }
 
         public CacheItem GetOrSubscribe(string rid, Action<CacheItem> subscribe)
@@ -117,6 +145,7 @@ namespace ResgateIO.Client
                 {
                     ci = new CacheItem(this, rid);
                     itemCache[rid] = ci;
+                    ci.AddSubscription(1);
                     subscribe(ci);
                 }
             }

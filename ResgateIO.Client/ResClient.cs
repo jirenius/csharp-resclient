@@ -168,6 +168,27 @@ namespace ResgateIO.Client
         }
 
         /// <summary>
+        /// Get and subscribe to a resource from the API.
+        /// </summary>
+        /// <param name="rid">Resource ID.</param>
+        /// <returns>The resource.</returns>
+        public Task<ResResource> SubscribeAsync(string rid)
+        {
+            CacheItem ci = cache.Subscribe(rid, subscribe);
+
+            return ci.ResourceTask;
+        }
+
+        /// <summary>
+        /// Unsubscribe to a previously subscribed resource, or a resource returned by a CallAsync or AuthAsync call.
+        /// </summary>
+        /// <param name="rid">Resource ID.</param>
+        public async Task UnsubscribeAsync(string rid)
+        {
+            await cache.Unsubscribe(rid, unsubscribe);
+        }
+
+        /// <summary>
         /// Sends a request to an API resource call method.
         /// </summary>
         /// <param name="rid">Resource ID.</param>
@@ -315,8 +336,6 @@ namespace ResgateIO.Client
         // _subscribe
         private async void subscribe(CacheItem ci)
         {
-            ci.AddSubscription(1);
-
             RequestResult result;
             try
             {
@@ -331,6 +350,11 @@ namespace ResgateIO.Client
             }
 
             cache.AddResources(result.Result);
+        }
+
+        private async Task unsubscribe(string rid)
+        {
+            await sendAsync("subscribe", rid, null, null);
         }
 
         // _send
