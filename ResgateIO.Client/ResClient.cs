@@ -163,15 +163,6 @@ namespace ResgateIO.Client
         public Task<ResResource> GetAsync(string rid)
         {
             CacheItem ci = cache.GetOrSubscribe(rid, subscribe);
-            //lock (cacheLock)
-            //{
-            //    if (!itemCache.TryGetValue(rid, out ci))
-            //    {
-            //        ci = new CacheItem(this, rid);
-            //        itemCache[rid] = ci;
-            //        Task _ = subscribeAsync(ci);
-            //    }
-            //}
 
             return ci.ResourceTask;
         }
@@ -324,13 +315,12 @@ namespace ResgateIO.Client
         // _subscribe
         private async void subscribe(CacheItem ci)
         {
-            var rid = ci.ResourceID;
             ci.AddSubscription(1);
 
             RequestResult result;
             try
             {
-                result = await sendAsync("subscribe", rid, null, null);
+                result = await sendAsync("subscribe", ci.ResourceID, null, null);
             }
             catch (Exception ex)
             {

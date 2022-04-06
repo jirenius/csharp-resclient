@@ -91,6 +91,23 @@ namespace ResgateIO.Client
             rt.Patterns.Add(pattern, factory);
         }
 
+        public CacheItem Subscribe(string rid, Action<CacheItem> subscribe)
+        {
+            CacheItem ci;
+            lock (cacheLock)
+            {
+                if (!itemCache.TryGetValue(rid, out ci))
+                {
+                    ci = new CacheItem(this, rid);
+                    itemCache[rid] = ci;
+                }
+
+                subscribe(ci);
+            }
+
+            return ci;
+        }
+
         public CacheItem GetOrSubscribe(string rid, Action<CacheItem> subscribe)
         {
             CacheItem ci;
@@ -220,8 +237,8 @@ namespace ResgateIO.Client
             }
 
             refs[ci.ResourceID] = new CacheItemReference { Item = ci, Count = ci.References, State = ReferenceState.None };
-            traverse(ci, null, (traversedCI, state) => seekRefs(refs, traversedCI), new TraverseState(ReferenceState.None), true);
-            traverse(ci, null, (traversedCI, state) => markDelete(refs, traversedCI, state), new TraverseState(ReferenceState.Delete));
+            traverse(ci, (traversedCI, state) => seekRefs(refs, traversedCI), new TraverseState(ReferenceState.None), true);
+            traverse(ci, (traversedCI, state) => markDelete(refs, traversedCI, state), new TraverseState(ReferenceState.Delete));
             return refs;
         }
 
@@ -310,7 +327,7 @@ namespace ResgateIO.Client
                 : state;
         }
 
-        private void traverse(CacheItem ci, CacheItem parentCI, TraverseCallback cb, TraverseState state, bool skipFirst = false)
+        private void traverse(CacheItem ci, TraverseCallback cb, TraverseState state, bool skipFirst = false)
         {
             // Call callback to get new state to pass to
             // children. If Abort, we should not traverse deeper
@@ -323,7 +340,21 @@ namespace ResgateIO.Client
                 }
             }
 
-            // var item = ci.Resource
+            if (ci.InternalResource != null)
+            {
+                IResourceType typ = getResourceType(ci.Type);
+
+
+                IEnumerable<object> values = typ.GetResourceValues(ci.InternalResource);
+                foreach (object value in values)
+                {
+                    CacheItem refItem = getRefItem(value);
+                    if (refItem != null)
+                    {
+                        traverse(ci, cb, state, false);
+                    }
+                }
+            }
         }
 
         public void AddResources(JToken data)
