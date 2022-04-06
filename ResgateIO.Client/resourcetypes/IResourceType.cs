@@ -10,9 +10,9 @@ namespace ResgateIO.Client
     /// </summary>
     public enum ResourceType
     {
-        Model = 0,
-        Collection = 1,
-        Error = 2
+        Model,
+        Collection,
+        Error
     }
 
     internal interface IResourceType
@@ -48,7 +48,7 @@ namespace ResgateIO.Client
         /// <summary>
         /// Handles a resource event and updates the internal resource returned from InitResource if needed.
         /// </summary>
-        /// <param name="resource">Resource.</param>
+        /// <param name="resource">Resource as returned from InitResource.</param>
         /// <param name="ev">Resource event.</param>
         /// <returns>Returns an the event to pass on to event handlers.</returns>
         ResourceEventArgs HandleEvent(object resource, ResourceEventArgs ev);
@@ -56,9 +56,16 @@ namespace ResgateIO.Client
         /// <summary>
         /// Synchronize the internal resource returned from InitResource.
         /// </summary>
-        /// <param name="resource">Resource.</param>
+        /// <param name="resource">Resource as returned from InitResource.</param>
         /// <param name="data">Resource data.</param>
         /// <returns>Returns a sequence of events to produce the new state.</returns>
         ResourceEventArgs[] SynchronizeResource(object resource, JToken data);
+
+        /// <summary>
+        /// Gets an values stored in the resource.
+        /// </summary>
+        /// <param name="resource">Resource as returned from InitResource.</param>
+        /// <returns></returns>
+        IEnumerable<object> GetResourceValues(object resource);
     }
 }

@@ -161,6 +161,12 @@ namespace ResgateIO.Client
             throw new NotImplementedException();
         }
 
+        public IEnumerable<object> GetResourceValues(object resource)
+        {
+            return ((Dictionary<string, object>)resource).Values;
+
+        }
+
         private ResModelResource defaultModelFactory(ResClient client, string rid)
         {
             return new ResModel(client, rid);

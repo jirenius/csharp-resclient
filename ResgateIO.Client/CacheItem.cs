@@ -12,6 +12,8 @@ namespace ResgateIO.Client
         public ResourceType Type { get; private set; }
         public bool IsSet { get { return completionSource.Task.IsCompleted; } }
         public Task<ResResource> ResourceTask { get { return completionSource.Task; } }
+        public int Subscriptions { get { return subscriptions; } }
+        public int References { get { return references; } }
 
         // Internal resources
         public object InternalResource { get; private set; }
@@ -20,7 +22,6 @@ namespace ResgateIO.Client
 
         private readonly string rid;
         private readonly ItemCache cache;
-        private int directReferences = 0;
         private int references = 0; // Indirect references by other resources
         private int subscriptions = 0; // Direct references through subscriptions
 

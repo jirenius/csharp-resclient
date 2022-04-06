@@ -6,8 +6,32 @@ using System.Threading.Tasks;
 
 namespace ResgateIO.Client
 {
+
     internal class ItemCache
     {
+
+        delegate TraverseState TraverseCallback(CacheItem traversedCI, TraverseState ret);
+
+        readonly struct TraverseState
+        {
+            public readonly ReferenceState State;
+            public readonly string ResourceID;
+
+            public TraverseState(ReferenceState state, string rid)
+            {
+                State = state;
+                ResourceID = rid;
+            }
+
+            public TraverseState(ReferenceState state)
+            {
+                State = state;
+                ResourceID = null;
+            }
+        }
+
+        private static TraverseState TraverseStop = new TraverseState(ReferenceState.Stop);
+        private static TraverseState TraverseContinue = new TraverseState(ReferenceState.None);
 
         private Dictionary<string, CacheItem> itemCache = new Dictionary<string, CacheItem>();
         //private HashSet<string> stale = new HashSet<string>();
@@ -97,9 +121,209 @@ namespace ResgateIO.Client
             return ci;
         }
 
+        /// <summary>
+        /// Tries to delete a cached item.
+        /// It will be deleted or set as stale if there are no subscriptions or references.
+        /// </summary>
+        /// <param name="ci"></param>
         public void TryDelete(CacheItem ci)
         {
-            //throw new NotImplementedException();
+            lock (cacheLock)
+            {
+                var refs = getRefState(ci);
+
+                foreach (var pair in refs)
+                {
+                    CacheItemReference r = pair.Value;
+                    switch (r.State)
+                    {
+                        //case ReferenceState.Stale:
+                        //    setStale(pair.Key);
+                        //    break;
+                        case ReferenceState.Delete:
+                            deleteRef(r.Item);
+                            break;
+                    }
+                }
+            }
+        }
+
+        private IResourceType getResourceType(ResourceType typ)
+        {
+            switch (typ)
+            {
+                case ResourceType.Model:
+                    return resourceTypes[ResourceTypeModel];
+                case ResourceType.Collection:
+                    return resourceTypes[ResourceTypeCollection];
+                case ResourceType.Error:
+                    throw new NotImplementedException();
+            }
+
+            throw new ArgumentException("Unknown resource type");
+        }
+
+        private void deleteRef(CacheItem item)
+        {
+            if (item.InternalResource != null)
+            {
+                IResourceType typ = getResourceType(item.Type);
+
+                IEnumerable<object> values = typ.GetResourceValues(item.InternalResource);
+                foreach (object value in values)
+                {
+                    CacheItem refItem = getRefItem(value);
+                    if (refItem != null)
+                    {
+                        refItem.AddReference(-1);
+                    }
+                }
+            }
+
+            itemCache.Remove(item.ResourceID);
+            //removeStale(item);
+        }
+
+        private CacheItem getRefItem(object value)
+        {
+            ResResource resource = value as ResResource;
+            if (resource == null)
+            {
+                return null;
+            }
+
+            if (itemCache.TryGetValue(resource.ResourceID, out CacheItem refItem))
+            {
+                return refItem;
+            }
+
+            // refItem not in cache means
+            // item has been deleted as part of
+            // a refState object
+            return null;
+        }
+
+        /// <summary>
+        /// Gets the reference state for a cache item and all its reference, if the item was to be removed.
+        /// </summary>
+        /// <param name="ci">Cache item</param>
+        /// <returns>Set of cache item references.</returns>
+        /// <exception cref="NotImplementedException"></exception>
+        private Dictionary<string, CacheItemReference> getRefState(CacheItem ci)
+        {
+            var refs = new Dictionary<string, CacheItemReference>();
+            
+            // Quick exit if directly subscribed
+            if (ci.Subscriptions > 0)
+            {
+                return refs;
+            }
+
+            refs[ci.ResourceID] = new CacheItemReference { Item = ci, Count = ci.References, State = ReferenceState.None };
+            traverse(ci, null, (traversedCI, state) => seekRefs(refs, traversedCI), new TraverseState(ReferenceState.None), true);
+            traverse(ci, null, (traversedCI, state) => markDelete(refs, traversedCI, state), new TraverseState(ReferenceState.Delete));
+            return refs;
+        }
+
+        /// <summary>
+        /// Seeks for resources that no longer has any reference and may be deleted.
+        /// </summary>
+        /// <remarks>Used as callback for the traverse method.</remarks>
+        /// <param name="refs">Set of cache item references.</param>
+        /// <param name="ci">Cache item.</param>
+        /// <returns>ReferenceState.Abort if not traversing further, or else ReferenceState.None.</returns>
+        private TraverseState seekRefs(Dictionary<string, CacheItemReference> refs, CacheItem ci)
+        {
+            if (ci.Subscriptions > 0)
+            {
+                return TraverseStop;
+            }
+
+            var rid = ci.ResourceID;
+            if (refs.TryGetValue(rid, out var refState))
+            {
+                // The reference has already been encountered and traversed.
+                // Just count down references and stop traversing further.
+                refState.Count--;
+                return TraverseStop;
+            }
+
+            // First time encountering this referenced item. Add it to the set.
+            refs[rid] = new CacheItemReference { Item = ci, Count = ci.References - 1, State = ReferenceState.None };
+            return TraverseContinue;
+        }
+
+        /// <summary>
+        /// Marks reference as Delete, Keep, or Stale, depending on the values returned from a seekRefs traverse.
+        /// </summary>
+        /// <param name="refs">Set of cache item references.</param>
+        /// <param name="ci">Cache item.</param>
+        /// <param name="state">State as returned from parent's traverse callback.</param>
+        /// <returns>State to pass to children. Abort means no traversing to children.</returns>
+        private TraverseState markDelete(Dictionary<string, CacheItemReference> refs, CacheItem ci, TraverseState state)
+        {
+            // Quick exit if it is already subscribed
+            if (ci.Subscriptions > 0)
+            {
+                return TraverseStop;
+            }
+
+            var rid = ci.ResourceID;
+            var refState = refs[rid];
+
+            if (refState.State == ReferenceState.Keep)
+            {
+                return TraverseStop;
+            }
+
+            if (state.State == ReferenceState.Delete)
+            {
+                if (refState.Count > 0)
+                {
+                    refState.State = ReferenceState.Keep;
+                }
+                else if (refState.State != ReferenceState.None)
+                {
+                    return TraverseStop;
+                }
+                //else if (refState.Item.Listeners > 0)
+                //{
+                //    refState.State = ReferenceState.Stale;
+                //}
+                else
+                {
+                    refState.State = ReferenceState.Delete;
+                    return state;
+                }
+                return new TraverseState(refState.State, rid);
+            }
+
+            // A stale item can never cover itself
+            if (state.ResourceID != null && state.ResourceID == rid)
+            {
+                return TraverseStop;
+            }
+
+            refState.State = ReferenceState.Keep;
+            return refState.Count > 0
+                ? new TraverseState(ReferenceState.Keep, rid)
+                : state;
+        }
+
+        private void traverse(CacheItem ci, CacheItem parentCI, TraverseCallback cb, TraverseState state, bool skipFirst = false)
+        {
+            // Call callback to get new state to pass to
+            // children. If Abort, we should not traverse deeper
+            if (!skipFirst)
+            {
+                state = cb(ci, state);
+                if (state.State == ReferenceState.Stop)
+                {
+                    return;
+                }
+            }
+
+            // var item = ci.Resource
         }
 
         public void AddResources(JToken data)
@@ -146,7 +370,7 @@ namespace ResgateIO.Client
             }
             else
             {
-                var type = resourceTypes[(int)ci.Type];
+                var type = getResourceType(ci.Type);
                 ev = type.HandleEvent(ci.InternalResource, ev);
             }
 

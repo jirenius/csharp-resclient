@@ -35,10 +35,7 @@ namespace ResgateIO.Client
             }
 
             ws = new ClientWebSocket();
-            if (cts != null)
-            {
-                cts.Dispose();
-            }
+            cts?.Dispose();
             cts = new CancellationTokenSource();
             await ws.ConnectAsync(new Uri(url), cts.Token);
             await Task.Factory.StartNew(ReceiveLoop, cts.Token, TaskCreationOptions.LongRunning, TaskScheduler.Default);
@@ -59,7 +56,7 @@ namespace ResgateIO.Client
             }
             ws.Dispose();
             ws = null;
-            cts.Dispose();
+            cts?.Dispose();
             cts = null;
         }
 

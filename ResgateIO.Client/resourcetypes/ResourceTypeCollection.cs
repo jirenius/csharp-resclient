@@ -152,5 +152,10 @@ namespace ResgateIO.Client
         {
             throw new NotImplementedException();
         }
+
+        public IEnumerable<object> GetResourceValues(object resource)
+        {
+            return (List<object>)resource;
+        }
     }
 }
