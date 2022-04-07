@@ -126,21 +126,12 @@ namespace ResgateIO.Client
                 {
                     throw new InvalidOperationException(String.Format("Resource not directly subscribed: {0}", rid));
                 }
-
-                ci.AddSubscription(-1);
             }
 
-            try
-            {
-                await unsubscribe(ci.ResourceID);
-            }
-            catch (Exception ex)
-            {
-                ci.AddSubscription(1);
-                throw ex;
-            }
+            await unsubscribe(ci.ResourceID);
 
             // Try delete the unsubscribed resource.
+            ci.AddSubscription(-1);
             TryDelete(ci);
         }
 
