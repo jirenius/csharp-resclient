@@ -2,8 +2,10 @@
 using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 
+[assembly: InternalsVisibleTo("ResgateIO.Client.UnitTests")]
 namespace ResgateIO.Client
 {
 
@@ -33,7 +35,7 @@ namespace ResgateIO.Client
         private static TraverseState TraverseStop = new TraverseState(ReferenceState.Stop);
         private static TraverseState TraverseContinue = new TraverseState(ReferenceState.None);
 
-        private Dictionary<string, CacheItem> itemCache = new Dictionary<string, CacheItem>();
+        private Dictionary<string, CacheItem> cache = new Dictionary<string, CacheItem>();
         //private HashSet<string> stale = new HashSet<string>();
         private object cacheLock = new object();
         private IResourceType[] resourceTypes;
@@ -42,7 +44,10 @@ namespace ResgateIO.Client
         public const int ResourceTypeModel = 0;
         public const int ResourceTypeCollection = 1;
 
+        // Cache dictionary exposed for test assertion purpose.
+        public IReadOnlyDictionary<string, CacheItem> Cache { get { return cache; } }
 
+        public ItemCache() : this(null) { }
 
         public ItemCache(ResClient client)
         {
@@ -96,10 +101,10 @@ namespace ResgateIO.Client
             CacheItem ci;
             lock (cacheLock)
             {
-                if (!itemCache.TryGetValue(rid, out ci))
+                if (!cache.TryGetValue(rid, out ci))
                 {
                     ci = new CacheItem(this, rid);
-                    itemCache[rid] = ci;
+                    cache[rid] = ci;
                 }
                 ci.AddSubscription(1);
                 subscribe(ci);
@@ -113,7 +118,7 @@ namespace ResgateIO.Client
             CacheItem ci;
             lock (cacheLock)
             {
-                if (!itemCache.TryGetValue(rid, out ci))
+                if (!cache.TryGetValue(rid, out ci))
                 {
                     throw new InvalidOperationException(String.Format("Resource not found in cache: {0}", rid));
                 }
@@ -134,6 +139,9 @@ namespace ResgateIO.Client
                 ci.AddSubscription(1);
                 throw ex;
             }
+
+            // Try delete the unsubscribed resource.
+            TryDelete(ci);
         }
 
         public CacheItem GetOrSubscribe(string rid, Action<CacheItem> subscribe)
@@ -141,10 +149,10 @@ namespace ResgateIO.Client
             CacheItem ci;
             lock (cacheLock)
             {
-                if (!itemCache.TryGetValue(rid, out ci))
+                if (!cache.TryGetValue(rid, out ci))
                 {
                     ci = new CacheItem(this, rid);
-                    itemCache[rid] = ci;
+                    cache[rid] = ci;
                     ci.AddSubscription(1);
                     subscribe(ci);
                 }
@@ -158,7 +166,7 @@ namespace ResgateIO.Client
             lock (cacheLock)
             {
                 addResources(result);
-                if (!itemCache.TryGetValue(rid, out ci))
+                if (!cache.TryGetValue(rid, out ci))
                 {
                     throw new ResException(String.Format("Resource not found in cache: {0}", rid));
                 }
@@ -226,7 +234,7 @@ namespace ResgateIO.Client
                 }
             }
 
-            itemCache.Remove(item.ResourceID);
+            cache.Remove(item.ResourceID);
             //removeStale(item);
         }
 
@@ -238,7 +246,7 @@ namespace ResgateIO.Client
                 return null;
             }
 
-            if (itemCache.TryGetValue(resource.ResourceID, out CacheItem refItem))
+            if (cache.TryGetValue(resource.ResourceID, out CacheItem refItem))
             {
                 return refItem;
             }
@@ -380,7 +388,7 @@ namespace ResgateIO.Client
                     CacheItem refItem = getRefItem(value);
                     if (refItem != null)
                     {
-                        traverse(ci, cb, state, false);
+                        traverse(refItem, cb, state, false);
                     }
                 }
             }
@@ -405,7 +413,7 @@ namespace ResgateIO.Client
             CacheItem ci;
             lock (cacheLock)
             {
-                if (!itemCache.TryGetValue(rid, out ci))
+                if (!cache.TryGetValue(rid, out ci))
                 {
                     throw new InvalidOperationException(String.Format("Resource not found in cache: {0}", rid));
                 }
@@ -499,7 +507,7 @@ namespace ResgateIO.Client
                         // Only initialize if not set for synchronization
                         if (sync == null || !sync.ContainsKey(rid))
                         {
-                            CacheItem ci = itemCache[rid];
+                            CacheItem ci = cache[rid];
                             ci.SetInternalResource(type.InitResource(ci.Resource, prop.Value));
 
                         }
@@ -516,7 +524,7 @@ namespace ResgateIO.Client
                     IResourceType type = resourceTypes[i];
                     foreach (KeyValuePair<string, JToken> pair in sync)
                     {
-                        type.SynchronizeResource(itemCache[pair.Key].Resource, pair.Value);
+                        type.SynchronizeResource(cache[pair.Key].Resource, pair.Value);
                     }
                 }
             }
@@ -531,7 +539,7 @@ namespace ResgateIO.Client
                     foreach (JProperty prop in resources.Properties())
                     {
                         string rid = prop.Name;
-                        itemCache[rid].CompleteTask();
+                        cache[rid].CompleteTask();
                     }
                 }
             }
@@ -545,11 +553,11 @@ namespace ResgateIO.Client
             {
                 string rid = prop.Name;
                 CacheItem ci = null;
-                if (!itemCache.TryGetValue(rid, out ci))
+                if (!cache.TryGetValue(rid, out ci))
                 {
                     // If the resource is not cached since before, create a new cache item for it.
                     ci = new CacheItem(this, rid);
-                    itemCache[rid] = ci;
+                    cache[rid] = ci;
                 }
                 else
                 {
@@ -600,7 +608,7 @@ namespace ResgateIO.Client
                         return new ResRef(rid);
                     }
 
-                    CacheItem item = itemCache[rid];
+                    CacheItem item = cache[rid];
                     if (addIndirect)
                     {
                         item.AddReference(1);
