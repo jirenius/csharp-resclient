@@ -388,7 +388,7 @@ namespace ResgateIO.Client.UnitTests
         };
 
         [Theory, MemberData(nameof(UnsubscribeResource_RemovesNonReferenced_Data))]
-        public void UnsubscribeResource_RemovesNonReferenced(ResourceSet[] resourceSets, CacheEntry[] expectedCacheEntries)
+        public async void UnsubscribeResource_RemovesNonReferenced(ResourceSet[] resourceSets, CacheEntry[] expectedCacheEntries)
         {
             var itemCache = new ItemCache();
             foreach (var resourceSet in resourceSets)
@@ -397,9 +397,7 @@ namespace ResgateIO.Client.UnitTests
             }
 
             // Remove the subscribed resource
-            var ci = itemCache.GetItem(resourceSets[0].RID);
-            ci.AddSubscription(-1);
-            itemCache.TryDelete(ci);
+            await itemCache.Unsubscribe(resourceSets[0].RID, (rid) => Task.CompletedTask);
 
             var cache = itemCache.Cache;
             Assert.Equal(expectedCacheEntries.Length, cache.Count);
