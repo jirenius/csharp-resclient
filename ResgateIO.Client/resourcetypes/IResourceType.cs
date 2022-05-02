@@ -1,6 +1,7 @@
 ﻿using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Text;
 
 namespace ResgateIO.Client
@@ -67,5 +68,10 @@ namespace ResgateIO.Client
         /// <param name="resource">Resource as returned from InitResource.</param>
         /// <returns></returns>
         IEnumerable<object> GetResourceValues(object resource);
+
+        /// <summary>
+        /// Event handler for errors.
+        /// </summary>
+        event ErrorEventHandler Error;
     }
 }

@@ -51,7 +51,6 @@ namespace ResgateIO.Client
             if (ws.State == WebSocketState.Open)
             {
                 cts.CancelAfter(TimeSpan.FromSeconds(2));
-                await ws.CloseOutputAsync(WebSocketCloseStatus.Empty, "", CancellationToken.None);
                 await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "", CancellationToken.None);
             }
             ws.Dispose();

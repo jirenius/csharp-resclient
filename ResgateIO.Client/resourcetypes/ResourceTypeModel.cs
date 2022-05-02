@@ -1,6 +1,7 @@
 ﻿using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Text;
 
 namespace ResgateIO.Client
@@ -15,6 +16,9 @@ namespace ResgateIO.Client
         public string ResourceProperty { get { return "models"; } }
 
         public readonly PatternMap<ModelFactory> Patterns;
+
+        // Events
+        public event ErrorEventHandler Error;
 
         private ItemCache cache;
 
@@ -151,7 +155,14 @@ namespace ResgateIO.Client
                 props[prop.Name] = cache.ParseValue(prop.Value, true);
             }
 
-            model.Init(props);
+            try
+            {
+                model.Init(props);
+            }
+            catch (Exception ex)
+            {
+                Error?.Invoke(this, new ErrorEventArgs(ex));
+            }            
 
             return props;
         }

@@ -2,6 +2,7 @@
 using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 
@@ -44,6 +45,9 @@ namespace ResgateIO.Client
         public const int ResourceTypeModel = 0;
         public const int ResourceTypeCollection = 1;
 
+        // Events
+        public event ErrorEventHandler Error;
+
         // Cache dictionary exposed for test assertion purpose.
         public IReadOnlyDictionary<string, CacheItem> Cache { get { return cache; } }
 
@@ -62,6 +66,11 @@ namespace ResgateIO.Client
                  new ResourceTypeModel(this),
                  new ResourceTypeCollection(this)
             };
+
+            foreach (var resourceType in resourceTypes)
+            {
+                resourceType.Error += new ErrorEventHandler(onError);
+            }
         }
 
         /// <summary>
@@ -441,7 +450,7 @@ namespace ResgateIO.Client
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine(String.Format("Exception on handling {0} event for resource {1}: {2}", ev.EventName, ev.ResourceID, ex.Message));
+                    Error?.Invoke(this, new ErrorEventArgs(ex));
                 }
             }
             return ev;
@@ -663,6 +672,10 @@ namespace ResgateIO.Client
                 Data = ev.Data,
                 Reason = reason,
             };
+        }
+        private void onError(object sender, ErrorEventArgs ev)
+        {
+            Error?.Invoke(this, ev);
         }
 
     }

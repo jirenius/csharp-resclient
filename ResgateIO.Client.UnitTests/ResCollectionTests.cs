@@ -64,8 +64,8 @@ namespace ResgateIO.Client.UnitTests
         [Fact]
         public async Task GetAsync_WithCustomCollectionFactory_GetsCustomCollectionl()
         {
-            Client.RegisterModelFactory("test.custom.*", (client, rid) => new Test.CustomModel(client, rid));
-            Client.RegisterCollectionFactory("test.custom", (client, rid) => new ResCollection<Test.CustomModel>(client, rid));
+            Client.RegisterModelFactory("test.custom.*", (client, rid) => new MockModel(client, rid));
+            Client.RegisterCollectionFactory("test.custom", (client, rid) => new ResCollection<MockModel>(client, rid));
             await ConnectAndHandshake();
 
             var creqTask = Client.GetAsync("test.custom");
@@ -86,10 +86,10 @@ namespace ResgateIO.Client.UnitTests
             });
             var result = await creqTask;
             Assert.Equal("test.custom", result.ResourceID);
-            Assert.IsType<ResCollection<Test.CustomModel>>(result);
-            var collection = result as ResCollection<Test.CustomModel>;
+            Assert.IsType<ResCollection<MockModel>>(result);
+            var collection = result as ResCollection<MockModel>;
             Assert.Single(collection);
-            Assert.IsType<Test.CustomModel>(collection[0]);
+            Assert.IsType<MockModel>(collection[0]);
             var model = collection[0];
             Assert.Equal("test.custom.42", model.ResourceID);
             Assert.Equal("foo", model.String);
@@ -176,6 +176,62 @@ namespace ResgateIO.Client.UnitTests
             Assert.Equal(addIndex, removeEv.Index);
             Assert.Equal(expectedRemoveValue, removeEv.Value);
             Test.AssertEqualJSON(expected, collection1);
+        }
+
+        [Fact]
+        public async Task GetAsync_WithExceptionInInitMethod_RaisesError()
+        {
+            var ex = new Exception("Exception thrown.");
+
+            Client.RegisterCollectionFactory("test.collection", (client, rid) =>
+            {
+                var collection = new MockCollection(client, rid);
+                collection.InitException = ex;
+                return collection;
+            });
+            await ConnectAndHandshake();
+
+            var creqTask = Client.GetAsync("test.collection");
+            var req = await WebSocket.GetRequestAsync();
+            req.AssertMethod("subscribe.test.collection");
+            req.SendResult(new JObject { { "collections", new JObject {
+                { "test.collection", Test.Collection }
+            } } });
+
+            var result = await creqTask;
+            Assert.Equal("test.collection", result.ResourceID);
+            Assert.IsType<MockCollection>(result);
+
+            var ev = await NextError();
+            Assert.Equal(ex, ev.GetException());
+        }
+
+        [Fact]
+        public async Task GetAsync_WithExceptionInEventHandler_RaisesError()
+        {
+            var ex = new Exception("Exception thrown.");
+
+            Client.RegisterCollectionFactory("test.collection", (client, rid) =>
+            {
+                var collection = new MockCollection(client, rid);
+                collection.HandleEventException = ex;
+                return collection;
+            });
+            await ConnectAndHandshake();
+
+            var creqTask1 = Client.GetAsync("test.collection");
+            var req1 = await WebSocket.GetRequestAsync();
+            req1.AssertMethod("subscribe.test.collection");
+            req1.SendResult(new JObject { { "collections", new JObject {
+                { "test.collection", Test.Collection }
+            } } });
+            var collection1 = await creqTask1 as MockCollection;
+
+            byte[] eventMsg = System.Text.Encoding.UTF8.GetBytes("{\"event\":\"test.collection.add\",\"data\":{\"idx\":2,\"value\":\"baz\"}}");
+            WebSocket.SendMessage(eventMsg);
+
+            var ev = await NextError();
+            Assert.Equal(ex, ev.GetException());
         }
     }
 }

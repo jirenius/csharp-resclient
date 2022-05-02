@@ -1,6 +1,7 @@
 ﻿using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Text;
 
 namespace ResgateIO.Client
@@ -15,6 +16,9 @@ namespace ResgateIO.Client
 
         public readonly PatternMap<CollectionFactory> Patterns;
 
+        // Events
+        public event ErrorEventHandler Error;
+
         private ItemCache cache;
 
         public ResourceTypeCollection(ItemCache cache)
@@ -26,6 +30,7 @@ namespace ResgateIO.Client
         public ResResource CreateResource(string rid)
         {
             CollectionFactory f = Patterns.Get(rid);
+            // [TODO] Catch any exception and return an ResError
             return f(cache.Client, rid);
         }
 
@@ -36,8 +41,8 @@ namespace ResgateIO.Client
 
         public object InitResource(ResResource resource, JToken data)
         {
-            ResCollectionResource Collection = resource as ResCollectionResource;
-            if (Collection == null)
+            ResCollectionResource collection = resource as ResCollectionResource;
+            if (collection == null)
             {
                 throw new InvalidOperationException("Resource not of type ResCollection.");
             }
@@ -54,7 +59,14 @@ namespace ResgateIO.Client
                 values.Add(cache.ParseValue(value, true));
             }
 
-            Collection.Init(values);
+            try
+            {
+                collection.Init(values);
+            }
+            catch (Exception ex)
+            {
+                Error?.Invoke(this, new ErrorEventArgs(ex));
+            }
 
             return values;
         }

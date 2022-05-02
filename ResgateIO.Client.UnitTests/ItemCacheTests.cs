@@ -137,8 +137,6 @@ namespace ResgateIO.Client.UnitTests
             }
         }
 
-
-
         public static IEnumerable<object[]> UnsubscribeResource_RemovesNonReferenced_Data => new List<object[]>
         {
             // Single unsubscribing all

@@ -9,45 +9,6 @@ namespace ResgateIO.Client.UnitTests
 {
     public static class Test
     {
-        /// <summary>
-        /// Mail represents a mail message resource model.
-        /// </summary>
-        public class CustomModel : ResModelResource
-        {
-            public string String { get; private set; }
-            public int Int { get; private set; }
-
-            public readonly ResClient Client;
-
-            public CustomModel(ResClient client, string rid) : base(rid)
-            {
-                Client = client;
-            }
-
-            public override void Init(IReadOnlyDictionary<string, object> props)
-            {
-                String = props["string"] as string;
-                Int = Convert.ToInt32(props["int"]);
-            }
-
-            public override void HandleEvent(ResourceEventArgs ev)
-            {
-                switch (ev)
-                {
-                    case ModelChangeEventArgs changeEv:
-                        if (changeEv.NewValues.TryGetValue("string", out object stringValue))
-                        {
-                            String = stringValue as string;
-                        }
-                        if (changeEv.NewValues.TryGetValue("int", out object intValue))
-                        {
-                            Int = Convert.ToInt32(intValue);
-                        }
-                        break;
-                }
-            }
-        }
-
         public class Payload
         {
             [JsonProperty(PropertyName = "foo")]

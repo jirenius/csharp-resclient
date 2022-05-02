@@ -64,7 +64,7 @@ namespace ResgateIO.Client.UnitTests
         [Fact]
         public async Task GetAsync_WithCustomModelFactory_GetsCustomModel()
         {
-            Client.RegisterModelFactory("test.custom.*", (client, rid) => new Test.CustomModel(client, rid));
+            Client.RegisterModelFactory("test.custom.*", (client, rid) => new MockModel(client, rid));
             await ConnectAndHandshake();
 
             var creqTask = Client.GetAsync("test.custom.42");
@@ -80,8 +80,8 @@ namespace ResgateIO.Client.UnitTests
             });
             var result = await creqTask;
             Assert.Equal("test.custom.42", result.ResourceID);
-            Assert.IsType<Test.CustomModel>(result);
-            var model = result as Test.CustomModel;
+            Assert.IsType<MockModel>(result);
+            var model = result as MockModel;
             Assert.Equal("foo", model.String);
             Assert.Equal(42, model.Int);
         }
@@ -168,6 +168,70 @@ namespace ResgateIO.Client.UnitTests
             Test.AssertEqualJSON( new JObject { { "int", 42 } }, changeEv.OldValues);
             Test.AssertEqualJSON(new JObject { { "int", 12 } }, changeEv.NewValues);
             Test.AssertEqualJSON(new JObject { { "foo", "bar" }, { "int", 12 } }, model1);
+        }
+
+        [Fact]
+        public async Task GetAsync_WithExceptionInInitMethod_RaisesError()
+        {
+            var ex = new Exception("Exception thrown.");
+
+            Client.RegisterModelFactory("test.model", (client, rid) =>
+            {
+                var model = new MockModel(client, rid);
+                model.InitException = ex;
+                return model;
+            });
+            await ConnectAndHandshake();
+
+            var creqTask = Client.GetAsync("test.model");
+            var req = await WebSocket.GetRequestAsync();
+            req.AssertMethod("subscribe.test.model");
+            req.SendResult(new JObject
+            {
+                { "models", new JObject
+                    {
+                        { "test.model", new JObject { { "foo", "bar" } } }
+                    }
+                }
+            });
+
+            var result = await creqTask;
+            Assert.Equal("test.model", result.ResourceID);
+            Assert.IsType<MockModel>(result);
+
+            var ev = await NextError();
+            Assert.Equal(ex, ev.GetException());
+        }
+
+        [Fact]
+        public async Task GetAsync_WithExceptionInEventHandler_RaisesError()
+        {
+            var ex = new Exception("Exception thrown.");
+
+            Client.RegisterModelFactory("test.model", (client, rid) =>
+            {
+                var model = new MockModel(client, rid);
+                model.HandleEventException = ex;
+                return model;
+            });
+            await ConnectAndHandshake();
+
+            var creqTask1 = Client.GetAsync("test.model");
+            var req1 = await WebSocket.GetRequestAsync();
+            req1.AssertMethod("subscribe.test.model");
+            req1.SendResult(new JObject { { "models", new JObject {
+                { "test.model", new JObject {
+                    { "string", "foo" },
+                    { "int", 42 },
+                } }
+            } } });
+            var model1 = await creqTask1 as MockModel;
+
+            byte[] eventMsg = System.Text.Encoding.UTF8.GetBytes("{\"event\":\"test.model.change\",\"data\":{\"values\":{\"string\":\"bar\"}}}");
+            WebSocket.SendMessage(eventMsg);
+
+            var ev = await NextError();
+            Assert.Equal(ex, ev.GetException());
         }
     }
 }

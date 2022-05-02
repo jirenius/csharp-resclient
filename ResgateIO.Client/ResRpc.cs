@@ -2,6 +2,7 @@
 using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -31,6 +32,7 @@ namespace ResgateIO.Client
 
         // Events
         public event EventHandler<ResourceEventArgs> ResourceEvent;
+        public event ErrorEventHandler Error;
 
         private readonly IWebSocket ws;
         private readonly JsonSerializerSettings serializerSettings;
@@ -49,70 +51,83 @@ namespace ResgateIO.Client
 
         private void onMessage(object sender, MessageEventArgs e)
         {
+            string msg = null;
+            MessageDto rpcmsg = null;
+
             try
             {
-                var msg = Encoding.UTF8.GetString(e.Message);
-                var rpcmsg = JsonConvert.DeserializeObject<MessageDto>(msg);
-
-                if (rpcmsg.Id != null)
-                {
-                    Console.WriteLine("==> {0}", msg);
-                    handleResponse(rpcmsg);
-                }
-                else if (rpcmsg.Event != null)
-                {
-                    Console.WriteLine("--> {0}", msg);
-                    handleEvent(rpcmsg);
-                }
-                else
-                {
-                    throw new InvalidOperationException(String.Format("Invalid message from server: {0}", msg));
-                }
+                msg = Encoding.UTF8.GetString(e.Message);
+                rpcmsg = JsonConvert.DeserializeObject<MessageDto>(msg);
             }
             catch (Exception ex)
             {
-
-                Console.WriteLine("Error handling message: {0}", ex.Message);
+                Error?.Invoke(this, new ErrorEventArgs(new InvalidMessageException(e.Message, "Error deserializing incoming message.", ex)));
             }
+
+            if (rpcmsg.Id != null)
+            {
+                handleResponse(rpcmsg);
+            }
+            else if (rpcmsg.Event != null)
+            {
+                handleEvent(rpcmsg);
+            }
+            else
+            {
+                throw new InvalidOperationException(String.Format("Invalid message from server: {0}", msg));
+            }
+           
         }
 
         private void handleResponse(MessageDto rpcmsg)
         {
-            RpcRequest req;
-            lock (requestLock)
+            try
             {
-                req = consumeRequest(rpcmsg.Id ?? default);
-            }
+                RpcRequest req = consumeRequest(rpcmsg.Id ?? default);
 
-            if (rpcmsg.Error != null)
-            {
-                req.Task.SetException(new ResException(rpcmsg.Error));
-            }
-            else
-            {
-                req.Task.SetResult(new RequestResult
+                if (rpcmsg.Error != null)
                 {
-                    Result = rpcmsg.Result
-                });
+                    req.Task.SetException(new ResException(rpcmsg.Error));
+                }
+                else
+                {
+                    req.Task.SetResult(new RequestResult
+                    {
+                        Result = rpcmsg.Result
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                Error?.Invoke(this, new ErrorEventArgs(ex));
+                return;
             }
         }
 
         private void handleEvent(MessageDto rpcmsg)
         {
-            // Event
-            var idx = rpcmsg.Event.LastIndexOf('.');
-		    if (idx <  0 || idx == rpcmsg.Event.Length - 1) {
-                throw new InvalidOperationException(String.Format("Malformed event name: {0}", rpcmsg.Event));
-            }
-            var rid = rpcmsg.Event.Substring(0, idx);
-
-
-            ResourceEvent?.Invoke(this, new ResourceEventArgs
+            try
             {
-                ResourceID = rid,
-                EventName = rpcmsg.Event.Substring(idx + 1),
-                Data = rpcmsg.Data,
-            });
+                // Event
+                var idx = rpcmsg.Event.LastIndexOf('.');
+		        if (idx <  0 || idx == rpcmsg.Event.Length - 1) {
+                    throw new InvalidOperationException(String.Format("Malformed event name: {0}", rpcmsg.Event));
+                }
+                var rid = rpcmsg.Event.Substring(0, idx);
+
+
+                ResourceEvent?.Invoke(this, new ResourceEventArgs
+                {
+                    ResourceID = rid,
+                    EventName = rpcmsg.Event.Substring(idx + 1),
+                    Data = rpcmsg.Data,
+                });
+            }
+            catch (Exception ex)
+            {
+                Error?.Invoke(this, new ErrorEventArgs(ex));
+                return;
+            }
         }
 
         public async Task<RequestResult> Request(string method, object parameters)

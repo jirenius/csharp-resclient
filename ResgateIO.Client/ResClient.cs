@@ -1,8 +1,7 @@
 ﻿using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System;
-using System.Collections.Generic;
-using System.Text;
+using System.IO;
 using System.Threading.Tasks;
 
 namespace ResgateIO.Client
@@ -16,6 +15,7 @@ namespace ResgateIO.Client
 
         // Events
         public event EventHandler<ResourceEventArgs> ResourceEvent;
+        public event ErrorEventHandler Error;
 
         // Properties
 
@@ -59,6 +59,7 @@ namespace ResgateIO.Client
         private void createItemCache()
         {
             cache = new ItemCache(this);
+            cache.Error += new ErrorEventHandler(onError);
         }
 
         /// <summary>
@@ -113,6 +114,7 @@ namespace ResgateIO.Client
 
             rpc = new ResRpc(ws, serializerSettings);
             rpc.ResourceEvent += onResourceEvent;
+            rpc.Error += onError;
 
 
             protocol = 0;
@@ -146,13 +148,6 @@ namespace ResgateIO.Client
                 protocol = versionToInt(legacyProtocol);
                 ResgateProtocol = legacyProtocol;
             }
-
-            
-
-            // this.ws.onopen = this._handleOnopen;
-            // this.ws.onerror = this._handleOnerror;
-            // this.ws.onmessage = this._handleOnmessage;
-            // this.ws.onclose = this._handleOnclose;
         }
 
         /// <summary>
@@ -368,11 +363,6 @@ namespace ResgateIO.Client
             return await rpc.Request(m, parameters);
         }
 
-        private void onMessage(object sender, MessageEventArgs e)
-        {
-            Console.WriteLine(e.Message.ToString());
-        }
-
         private async Task<IWebSocket> createWebSocket()
         {
             var webSocket = new WebSocket();
@@ -403,11 +393,22 @@ namespace ResgateIO.Client
 
         private void onResourceEvent(object sender, ResourceEventArgs ev)
         {
-            ev = cache.HandleEvent(ev);
-            if (ev != null)
+            try
             {
-                ResourceEvent?.Invoke(this, ev);
+                ev = cache.HandleEvent(ev);
+                if (ev != null)
+                {
+                    ResourceEvent?.Invoke(this, ev);
+                }
             }
+            catch (Exception ex)
+            {
+                Error?.Invoke(this, new ErrorEventArgs(ex));
+            }
+        }
+        private void onError(object sender, ErrorEventArgs ev)
+        {
+            Error?.Invoke(this, ev);
         }
 
         protected virtual void Dispose(bool disposing)
