@@ -12,6 +12,7 @@ namespace ResgateIO.Client
     {
         public int ReceiveBufferSize = 8192;
         public event EventHandler<MessageEventArgs> OnMessage;
+        public event EventHandler OnClose;
 
         private ClientWebSocket ws;
         private CancellationTokenSource cts;

@@ -9,6 +9,7 @@ namespace ResgateIO.Client
     public interface IWebSocket : IDisposable
     {
         event EventHandler<MessageEventArgs> OnMessage;
+        event EventHandler OnClose;
         Task SendAsync(byte[] data);
         
         Task DisconnectAsync();

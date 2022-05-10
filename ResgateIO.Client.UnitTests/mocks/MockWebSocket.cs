@@ -12,12 +12,14 @@ namespace ResgateIO.Client.UnitTests
     public class MockWebSocket : IWebSocket
     {
         public event EventHandler<MessageEventArgs> OnMessage;
+        public event EventHandler OnClose;
 
         private readonly ITestOutputHelper log;
         private HashSet<int> requestIds = new HashSet<int>();
         private Queue<MockRequest> requestQueue = new Queue<MockRequest>();
         private Queue<TaskCompletionSource<MockRequest>> awaiters = new Queue<TaskCompletionSource<MockRequest>>();
         private object requestLock = new object();
+        private bool Closed = false;
 
         public MockWebSocket(ITestOutputHelper output)
         {
@@ -37,6 +39,11 @@ namespace ResgateIO.Client.UnitTests
             TaskCompletionSource<MockRequest> tcs;
             lock (requestLock)
             {
+                if (Closed)
+                {
+                    throw new InvalidOperationException("Connection is closed");
+                }
+
                 if (requestIds.Contains(request.Id))
                 {
                     throw new InvalidOperationException(String.Format("Request ID {0} sent more than once for the same connection.", request.Id));
@@ -52,15 +59,22 @@ namespace ResgateIO.Client.UnitTests
                 tcs = awaiters.Dequeue();
             }
 
-
-            tcs = awaiters.Dequeue();
             tcs.SetResult(request);
             return Task.CompletedTask;
         }
 
         public Task DisconnectAsync()
         {
+            lock (requestLock)
+            {
+                if (Closed)
+                {
+                    throw new InvalidOperationException("Connection already closed");
+                }
+                Closed = true;
+            }
             log?.WriteLine("<-X Disconnected");
+            OnClose?.Invoke(this, EventArgs.Empty);
             return Task.CompletedTask;
         }
 

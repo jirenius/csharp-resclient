@@ -13,7 +13,9 @@ namespace ResgateIO.Client
         public bool IsSet { get { return completionSource.Task.IsCompleted; } }
         public Task<ResResource> ResourceTask { get { return completionSource.Task; } }
         public int Subscriptions { get { return subscriptions; } }
+        public int VirtualSubscriptions { get { return virtualSubscriptions; } }
         public int References { get { return references; } }
+        public bool IsStale { get { return subscriptions == 0 && virtualSubscriptions > 0; } }
 
         // Internal resources
         public object InternalResource { get; private set; }
@@ -24,6 +26,7 @@ namespace ResgateIO.Client
         private readonly ItemCache cache;
         private int references = 0; // Indirect references by other resources
         private int subscriptions = 0; // Direct references through subscriptions
+        private int virtualSubscriptions = 0; // Direct references through subscriptions not propagated to the gateway
 
         public CacheItem(ItemCache cache, string rid)
         {
@@ -33,19 +36,46 @@ namespace ResgateIO.Client
             //var r = new WeakReference(new List<string>(), true);
         }
 
-        public void AddSubscription(int delta)
+        /// <summary>
+        /// Increases the subscription count with one.
+        /// </summary>
+        /// <param name="allowVirtual">If true, the virtualSubscription counter will be increased if subscriptions > 0</param>
+        /// <returns>Returns true if subscriptions were increased, or false if virtualSubscriptions were increased.</returns>
+        public bool AddSubscription(bool allowVirtual)
         {
-            subscriptions += delta;
-            //if (subscriptions == 0 && this.unsubTimeout)
-            //{
-            //    clearTimeout(this.unsubTimeout);
-            //    this.unsubTimeout = null;
-            //}
+            if (allowVirtual && subscriptions > 0)
+            {
+                virtualSubscriptions++;
+                return false;
+            }
+            subscriptions++;
+            return true;
+        }
+
+        /// <summary>
+        /// Increases the subscription count with one.
+        /// </summary>
+        /// <param name="allowVirtual">If true, the virtualSubscription counter will be decreased if virtualSubscriptions > 0</param>
+        /// <returns>Returns true if subscriptions were decreased, or false if virtualSubscriptions were decreased.</returns>
+        public bool RemoveSubscription(bool allowVirtual)
+        {
+            if (allowVirtual && virtualSubscriptions > 0)
+            {
+                virtualSubscriptions--;
+                return false;
+            }
+            subscriptions--;
+            if (subscriptions == 0)
+            {
+                virtualSubscriptions = 0;
+            }
+            return true;
         }
 
         public void ClearSubscriptions()
         {
-            AddSubscription(-subscriptions);
+            subscriptions = 0;
+            virtualSubscriptions = 0;
         }
 
         public void AddReference(int delta)
@@ -62,9 +92,10 @@ namespace ResgateIO.Client
             completionSource.TrySetException(ex);
         }
 
-        public void ClearSubscribed()
+        public void SetStale()
         {
-
+            virtualSubscriptions += subscriptions;
+            subscriptions = 0;
         }
 
         public void SetResource(ResResource resource, ResourceType resourceType)

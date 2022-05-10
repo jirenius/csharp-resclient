@@ -20,7 +20,7 @@ namespace ResgateIO.Client.UnitTests
         public async Task CallAsync_AnonymousResult_GetsResult(string payload, object expected)
         {
             await ConnectAndHandshake();
-            var creqTask1 = Client.GetAsync("test.collection");
+            var creqTask1 = Client.SubscribeAsync("test.collection");
             var req1 = await WebSocket.GetRequestAsync();
             req1.AssertMethod("subscribe.test.collection");
             req1.SendResult(new JObject { { "collections", new JObject {
@@ -45,7 +45,7 @@ namespace ResgateIO.Client.UnitTests
         public async Task AuthAsync_AnonymousResult_GetsResult(string payload, object expected)
         {
             await ConnectAndHandshake();
-            var creqTask1 = Client.GetAsync("test.collection");
+            var creqTask1 = Client.SubscribeAsync("test.collection");
             var req1 = await WebSocket.GetRequestAsync();
             req1.AssertMethod("subscribe.test.collection");
             req1.SendResult(new JObject { { "collections", new JObject {
@@ -62,13 +62,13 @@ namespace ResgateIO.Client.UnitTests
         }
 
         [Fact]
-        public async Task GetAsync_WithCustomCollectionFactory_GetsCustomCollectionl()
+        public async Task SubscribeAsync_WithCustomCollectionFactory_GetsCustomCollectionl()
         {
             Client.RegisterModelFactory("test.custom.*", (client, rid) => new MockModel(client, rid));
             Client.RegisterCollectionFactory("test.custom", (client, rid) => new ResCollection<MockModel>(client, rid));
             await ConnectAndHandshake();
 
-            var creqTask = Client.GetAsync("test.custom");
+            var creqTask = Client.SubscribeAsync("test.custom");
             var req = await WebSocket.GetRequestAsync();
             req.AssertMethod("subscribe.test.custom");
             req.SendResult(new JObject
@@ -109,7 +109,7 @@ namespace ResgateIO.Client.UnitTests
         public async Task AddEvent_PrimitiveValue_UpdatesCollection(int addIndex, string addValue, object expected)
         {
             await ConnectAndHandshake();
-            var creqTask1 = Client.GetAsync("test.collection");
+            var creqTask1 = Client.SubscribeAsync("test.collection");
             var req1 = await WebSocket.GetRequestAsync();
             req1.AssertMethod("subscribe.test.collection");
             req1.SendResult(new JObject { { "collections", new JObject {
@@ -151,7 +151,7 @@ namespace ResgateIO.Client.UnitTests
         public async Task RemoveEvent_PrimitiveValue_UpdatesCollection(int addIndex, string expectedRemoveValue, object expected)
         {
             await ConnectAndHandshake();
-            var creqTask1 = Client.GetAsync("test.collection");
+            var creqTask1 = Client.SubscribeAsync("test.collection");
             var req1 = await WebSocket.GetRequestAsync();
             req1.AssertMethod("subscribe.test.collection");
             req1.SendResult(new JObject { { "collections", new JObject {
@@ -179,7 +179,7 @@ namespace ResgateIO.Client.UnitTests
         }
 
         [Fact]
-        public async Task GetAsync_WithExceptionInInitMethod_RaisesError()
+        public async Task SubscribeAsync_WithExceptionInInitMethod_RaisesError()
         {
             var ex = new Exception("Exception thrown.");
 
@@ -191,7 +191,7 @@ namespace ResgateIO.Client.UnitTests
             });
             await ConnectAndHandshake();
 
-            var creqTask = Client.GetAsync("test.collection");
+            var creqTask = Client.SubscribeAsync("test.collection");
             var req = await WebSocket.GetRequestAsync();
             req.AssertMethod("subscribe.test.collection");
             req.SendResult(new JObject { { "collections", new JObject {
@@ -207,7 +207,7 @@ namespace ResgateIO.Client.UnitTests
         }
 
         [Fact]
-        public async Task GetAsync_WithExceptionInEventHandler_RaisesError()
+        public async Task SubscribeAsync_WithExceptionInEventHandler_RaisesError()
         {
             var ex = new Exception("Exception thrown.");
 
@@ -219,7 +219,7 @@ namespace ResgateIO.Client.UnitTests
             });
             await ConnectAndHandshake();
 
-            var creqTask1 = Client.GetAsync("test.collection");
+            var creqTask1 = Client.SubscribeAsync("test.collection");
             var req1 = await WebSocket.GetRequestAsync();
             req1.AssertMethod("subscribe.test.collection");
             req1.SendResult(new JObject { { "collections", new JObject {

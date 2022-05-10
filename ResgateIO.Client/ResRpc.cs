@@ -47,6 +47,7 @@ namespace ResgateIO.Client
             this.ws = ws;
             this.serializerSettings = serializerSettings;
             this.ws.OnMessage += onMessage;
+            this.ws.OnClose += onClose;
         }
 
         private void onMessage(object sender, MessageEventArgs e)
@@ -76,7 +77,11 @@ namespace ResgateIO.Client
             {
                 throw new InvalidOperationException(String.Format("Invalid message from server: {0}", msg));
             }
-           
+        }
+
+        private void onClose(object sender, EventArgs e)
+        {
+            throw new NotImplementedException();
         }
 
         private void handleResponse(MessageDto rpcmsg)

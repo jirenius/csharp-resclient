@@ -20,7 +20,7 @@ namespace ResgateIO.Client.UnitTests
         public async Task CallAsync_WithoutParameters_CallsMethod(string payload, object expected)
         {
             await ConnectAndHandshake();
-            var creqTask1 = Client.GetAsync("test.model");
+            var creqTask1 = Client.SubscribeAsync("test.model");
             var req1 = await WebSocket.GetRequestAsync();
             req1.AssertMethod("subscribe.test.model");
             req1.SendResult(new JObject { { "models", new JObject {
@@ -45,7 +45,7 @@ namespace ResgateIO.Client.UnitTests
         public async Task AuthAsync_AnonymousResult_GetsResult(string payload, object expected)
         {
             await ConnectAndHandshake();
-            var creqTask1 = Client.GetAsync("test.model");
+            var creqTask1 = Client.SubscribeAsync("test.model");
             var req1 = await WebSocket.GetRequestAsync();
             req1.AssertMethod("subscribe.test.model");
             req1.SendResult(new JObject { { "models", new JObject {
@@ -62,12 +62,12 @@ namespace ResgateIO.Client.UnitTests
         }
 
         [Fact]
-        public async Task GetAsync_WithCustomModelFactory_GetsCustomModel()
+        public async Task SubscribeAsync_WithCustomModelFactory_GetsCustomModel()
         {
             Client.RegisterModelFactory("test.custom.*", (client, rid) => new MockModel(client, rid));
             await ConnectAndHandshake();
 
-            var creqTask = Client.GetAsync("test.custom.42");
+            var creqTask = Client.SubscribeAsync("test.custom.42");
             var req = await WebSocket.GetRequestAsync();
             req.AssertMethod("subscribe.test.custom.42");
             req.SendResult(new JObject
@@ -102,7 +102,7 @@ namespace ResgateIO.Client.UnitTests
         public async Task ChangeEvent_UpdatesModel(string changeData, object oldValues, object newValues, object expected)
         {
             await ConnectAndHandshake();
-            var creqTask1 = Client.GetAsync("test.model");
+            var creqTask1 = Client.SubscribeAsync("test.model");
             var req1 = await WebSocket.GetRequestAsync();
             req1.AssertMethod("subscribe.test.model");
             req1.SendResult(new JObject { { "models", new JObject {
@@ -134,10 +134,10 @@ namespace ResgateIO.Client.UnitTests
         }
 
         [Fact]
-        public async Task GetAsync_ChangeEventWithNoChange_TriggersNoEvent()
+        public async Task SubscribeAsync_ChangeEventWithNoChange_TriggersNoEvent()
         {
             await ConnectAndHandshake();
-            var creqTask1 = Client.GetAsync("test.model");
+            var creqTask1 = Client.SubscribeAsync("test.model");
             var req1 = await WebSocket.GetRequestAsync();
             req1.AssertMethod("subscribe.test.model");
             req1.SendResult(new JObject { { "models", new JObject {
@@ -171,7 +171,7 @@ namespace ResgateIO.Client.UnitTests
         }
 
         [Fact]
-        public async Task GetAsync_WithExceptionInInitMethod_RaisesError()
+        public async Task SubscribeAsync_WithExceptionInInitMethod_RaisesError()
         {
             var ex = new Exception("Exception thrown.");
 
@@ -183,7 +183,7 @@ namespace ResgateIO.Client.UnitTests
             });
             await ConnectAndHandshake();
 
-            var creqTask = Client.GetAsync("test.model");
+            var creqTask = Client.SubscribeAsync("test.model");
             var req = await WebSocket.GetRequestAsync();
             req.AssertMethod("subscribe.test.model");
             req.SendResult(new JObject
@@ -204,7 +204,7 @@ namespace ResgateIO.Client.UnitTests
         }
 
         [Fact]
-        public async Task GetAsync_WithExceptionInEventHandler_RaisesError()
+        public async Task SubscribeAsync_WithExceptionInEventHandler_RaisesError()
         {
             var ex = new Exception("Exception thrown.");
 
@@ -216,7 +216,7 @@ namespace ResgateIO.Client.UnitTests
             });
             await ConnectAndHandshake();
 
-            var creqTask1 = Client.GetAsync("test.model");
+            var creqTask1 = Client.SubscribeAsync("test.model");
             var req1 = await WebSocket.GetRequestAsync();
             req1.AssertMethod("subscribe.test.model");
             req1.SendResult(new JObject { { "models", new JObject {

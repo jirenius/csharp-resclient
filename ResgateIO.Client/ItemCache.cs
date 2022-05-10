@@ -105,7 +105,7 @@ namespace ResgateIO.Client
             rt.Patterns.Add(pattern, factory);
         }
 
-        public CacheItem Subscribe(string rid, Action<CacheItem> subscribe)
+        public CacheItem Subscribe(string rid, Func<CacheItem, Task<JToken>> subscribe)
         {
             CacheItem ci;
             lock (cacheLock)
@@ -115,8 +115,25 @@ namespace ResgateIO.Client
                     ci = new CacheItem(this, rid);
                     cache[rid] = ci;
                 }
-                ci.AddSubscription(1);
-                subscribe(ci);
+                if (ci.AddSubscription(true))
+                {
+                    Task.Run(async () =>
+                    {
+                        JToken result = null;
+                        try
+                        {
+                            result = await subscribe(ci);
+                        }
+                        catch (Exception ex)
+                        {
+                            ci.RemoveSubscription(false);
+                            TryDelete(ci);
+                            ci.TrySetException(ex);
+                        }
+
+                        AddResources(result);
+                    });
+                }
             }
 
             return ci;
@@ -135,31 +152,37 @@ namespace ResgateIO.Client
                 {
                     throw new InvalidOperationException(String.Format("Resource not directly subscribed: {0}", rid));
                 }
+                if (ci.VirtualSubscriptions > 0)
+                {
+                    ci.RemoveSubscription(true);
+                    return;
+                }
             }
 
             await unsubscribe(ci.ResourceID);
 
             // Try delete the unsubscribed resource.
-            ci.AddSubscription(-1);
+            ci.RemoveSubscription(false);
             TryDelete(ci);
         }
 
-        public CacheItem GetOrSubscribe(string rid, Action<CacheItem> subscribe)
-        {
-            CacheItem ci;
-            lock (cacheLock)
-            {
-                if (!cache.TryGetValue(rid, out ci))
-                {
-                    ci = new CacheItem(this, rid);
-                    cache[rid] = ci;
-                    ci.AddSubscription(1);
-                    subscribe(ci);
-                }
-            }
+        //public CacheItem GetOrSubscribe(string rid, Action<CacheItem> subscribe)
+        //{
+        //    CacheItem ci;
+        //    lock (cacheLock)
+        //    {
+        //        if (!cache.TryGetValue(rid, out ci))
+        //        {
+        //            ci = new CacheItem(this, rid);
+        //            cache[rid] = ci;
+        //            ci.AddSubscription(1);
+        //            subscribe(ci);
+        //        }
+        //    }
 
-            return ci;
-        }
+        //    return ci;
+        //}
+
         public CacheItem AddResourcesAndSubscribe(JToken result, string rid)
         {
             CacheItem ci;
@@ -170,9 +193,35 @@ namespace ResgateIO.Client
                 {
                     throw new ResException(String.Format("Resource not found in cache: {0}", rid));
                 }
-                ci.AddSubscription(1);
+                ci.AddSubscription(false);
             }
             return ci;
+        }
+
+        public void SetAllStale()
+        {
+            lock (cacheLock)
+            {
+                foreach (CacheItem ci in cache.Values)
+                {
+                    ci.SetStale();
+                }                
+            }
+        }
+
+        public void SubscribeStale(Func<CacheItem, Task<JToken>> subscribe)
+        {
+            lock (cacheLock)
+            {
+                foreach (var pair in cache)
+                {
+                    var ci = pair.Value;
+                    if (ci.IsStale)
+                    {
+                        ci.SetStale();
+                    }
+                }
+            }
         }
 
         /// <summary>

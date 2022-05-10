@@ -22,12 +22,18 @@ namespace ResgateIO.Client
         /// <value>Supported RES protocol version by Resgate.</value>
         public string ResgateProtocol { get; private set; }
 
+        public bool Connected { get { return rpc != null; } }
+
         // Fields
         private ResRpc rpc;
         private string hostUrl;
         private readonly Func<Task<IWebSocket>> wsFactory;
         private JsonSerializerSettings serializerSettings;
+        private Func<ResClient, Task> onConnectCallback;
+        private object connectLock = new object();
+        private Task connectTask;
         private int protocol;
+        private bool online;
         private bool disposedValue;
         //private Dictionary<string, CacheItem> itemCache = new Dictionary<string, CacheItem>();
 
@@ -75,6 +81,18 @@ namespace ResgateIO.Client
         }
 
         /// <summary>
+        /// Sets the on connect callback used to authenticate the connection.
+        /// Must be called before connecting.
+        /// </summary>
+        /// <param name="settings">JSON serializer settings.</param>
+        /// <returns>The ResClient instance.</returns>
+        public ResClient SetOnConnect(Func<ResClient, Task> callback)
+        {
+            onConnectCallback = callback;
+            return this;
+        }
+
+        /// <summary>
         /// Registers a model factory for a specific resource pattern.
         /// The pattern may contain wildcards:
         /// * (asterisk) is a partial wildcard.
@@ -106,61 +124,123 @@ namespace ResgateIO.Client
 
         public async Task ConnectAsync()
         {
-            if (rpc != null)
+            Task task;
+            lock (connectLock)
             {
-                return;
+                if (connectTask == null)
+                {
+                    connectTask = connectAsync();
+                }
+                task = connectTask;
             }
+
+            await task;
+        }
+
+        private async Task connectAsync()
+        { 
             var ws = await wsFactory();
+            ws.OnClose += onClose;
 
             rpc = new ResRpc(ws, serializerSettings);
             rpc.ResourceEvent += onResourceEvent;
             rpc.Error += onError;
 
-
-            protocol = 0;
-            // RES protocol version handshake
             try
             {
-                var result = await rpc.Request("version", new VersionRequestDto(ProtocolVersion));
-                if (result.Result != null)
+                protocol = 0;
+                // RES protocol version handshake
+                try
                 {
-                    var versionResponse = result.Result.ToObject<VersionResponseDto>();
-                    protocol = versionToInt(versionResponse.Protocol);
-                    ResgateProtocol = versionResponse.Protocol;
+                    var result = await rpc.Request("version", new VersionRequestDto(ProtocolVersion));
+                    if (result.Result != null)
+                    {
+                        var versionResponse = result.Result.ToObject<VersionResponseDto>();
+                        protocol = versionToInt(versionResponse.Protocol);
+                        ResgateProtocol = versionResponse.Protocol;
+                    }
                 }
-            }
-            catch (ResException ex)
-            {
-                // An invalid request error means legacy behavior
-                if (ex.Code != ResError.CodeInvalidRequest)
+                catch (ResException ex)
+                {
+                    // An invalid request error means legacy behavior
+                    if (ex.Code != ResError.CodeInvalidRequest)
+                    {
+                        throw ex;
+                    }
+                }
+                catch (Exception ex)
                 {
                     throw ex;
                 }
+
+                // Set legacy protocol.
+                if (protocol == 0)
+                {
+                    protocol = versionToInt(legacyProtocol);
+                    ResgateProtocol = legacyProtocol;
+                }
+
+                if (onConnectCallback != null)
+                {
+                    await onConnectCallback(this);
+                }
+
+                online = true;
+
+                subscribeToAllStale();
             }
             catch (Exception ex)
             {
+                disposeRpc();
                 throw ex;
-            }
-
-            // Set legacy protocol.
-            if (protocol == 0)
-            {
-                protocol = versionToInt(legacyProtocol);
-                ResgateProtocol = legacyProtocol;
             }
         }
 
         /// <summary>
-        /// Get a resource from the API.
+        /// Disconnects the WebSocket and sets the client to offline mode.
         /// </summary>
-        /// <param name="rid">Resource ID.</param>
-        /// <returns>The resource.</returns>
-        public Task<ResResource> GetAsync(string rid)
+        /// <returns>Task that completes once disconnected.</returns>
+        public async Task DisconnectAsync()
         {
-            CacheItem ci = cache.GetOrSubscribe(rid, subscribe);
+            if (rpc == null)
+            {
+                return;
+            }
 
-            return ci.ResourceTask;
+            try
+            {
+                await rpc.WebSocket.DisconnectAsync();
+            }
+            finally
+            {
+                disposeRpc();
+                online = false;
+            }
         }
+
+        /// <summary>
+        /// Called when the WebSocket connection is closed.
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        /// <exception cref="NotImplementedException"></exception>
+        private void onClose(object sender, EventArgs e)
+        {
+            cache.SetAllStale();
+            disposeRpc();
+        }
+
+        ///// <summary>
+        ///// Get a resource from the API.
+        ///// </summary>
+        ///// <param name="rid">Resource ID.</param>
+        ///// <returns>The resource.</returns>
+        //public Task<ResResource> GetAsync(string rid)
+        //{
+        //    CacheItem ci = cache.GetOrSubscribe(rid, subscribe);
+
+        //    return ci.ResourceTask;
+        //}
 
         /// <summary>
         /// Get and subscribe to a resource from the API.
@@ -329,22 +409,10 @@ namespace ResgateIO.Client
         }
 
         // _subscribe
-        private async void subscribe(CacheItem ci)
+        private async Task<JToken> subscribe(CacheItem ci)
         {
-            RequestResult result;
-            try
-            {
-                result = await sendAsync("subscribe", ci.ResourceID, null, null);
-            }
-            catch (Exception ex)
-            {
-                ci.AddSubscription(-1);
-                cache.TryDelete(ci);
-                ci.TrySetException(ex);
-                throw ex;
-            }
-
-            cache.AddResources(result.Result);
+            RequestResult result = await sendAsync("subscribe", ci.ResourceID, null, null);
+            return result.Result;
         }
 
         private async Task unsubscribe(string rid)
@@ -361,6 +429,19 @@ namespace ResgateIO.Client
 
             await ConnectAsync();
             return await rpc.Request(m, parameters);
+        }
+
+        // _subscribeToAllStale
+        private void subscribeToAllStale()
+        {
+            cache.SubscribeStale(subscribe);
+        }
+
+        private void disposeRpc()
+        {
+            rpc?.Dispose();
+            rpc = null;
+            connectTask = null;
         }
 
         private async Task<IWebSocket> createWebSocket()

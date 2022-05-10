@@ -43,11 +43,11 @@ namespace ResgateIO.Client.UnitTests
         }
 
         [Fact]
-        public async Task GetAsync_WithModelResponse_GetsModel()
+        public async Task SubscribeAsync_WithModelResponse_GetsModel()
         {
             await ConnectAndHandshake();
 
-            var creqTask = Client.GetAsync("test.model");
+            var creqTask = Client.SubscribeAsync("test.model");
             var req = await WebSocket.GetRequestAsync();
             req.AssertMethod("subscribe.test.model");
             req.SendResult(new JObject
@@ -69,11 +69,11 @@ namespace ResgateIO.Client.UnitTests
 
 
         [Fact]
-        public async Task GetAsync_WithErrorResponse_ThrowsResException()
+        public async Task SubscribeAsync_WithErrorResponse_ThrowsResException()
         {
             await ConnectAndHandshake();
 
-            var creqTask = Client.GetAsync("test.model");
+            var creqTask = Client.SubscribeAsync("test.model");
             var req = await WebSocket.GetRequestAsync();
             req.AssertMethod("subscribe.test.model");
             req.SendError(new ResError(ResError.CodeNotFound, "Not found"));
@@ -82,11 +82,11 @@ namespace ResgateIO.Client.UnitTests
         }
 
         [Fact]
-        public async Task GetAsync_WithCollectionResponse_GetsCollection()
+        public async Task SubscribeAsync_WithCollectionResponse_GetsCollection()
         {
             await ConnectAndHandshake();
 
-            var creqTask = Client.GetAsync("test.collection");
+            var creqTask = Client.SubscribeAsync("test.collection");
             var req = await WebSocket.GetRequestAsync();
             req.AssertMethod("subscribe.test.collection");
             req.SendResult(new JObject
@@ -106,11 +106,11 @@ namespace ResgateIO.Client.UnitTests
         }
 
         [Fact]
-        public async Task GetAsync_CalledTwiceOnModel_GetsModelFromCache()
+        public async Task SubscribeAsync_CalledTwiceOnModel_GetsModelFromCache()
         {
             await ConnectAndHandshake();
 
-            var creqTask = Client.GetAsync("test.model");
+            var creqTask = Client.SubscribeAsync("test.model");
             var req = await WebSocket.GetRequestAsync();
             req.AssertMethod("subscribe.test.model");
             req.SendResult(new JObject { { "models", new JObject {
@@ -119,16 +119,16 @@ namespace ResgateIO.Client.UnitTests
             var model1 = await creqTask as ResModel;
             Test.AssertEqualJSON(Test.Model, model1);
 
-            var model2 = await Client.GetAsync("test.model") as ResModel;
+            var model2 = await Client.SubscribeAsync("test.model") as ResModel;
             Assert.Same(model1, model2);
         }
 
         [Fact]
-        public async Task GetAsync_CalledTwiceOnCollection_GetsCollectionFromCache()
+        public async Task SubscribeAsync_CalledTwiceOnCollection_GetsCollectionFromCache()
         {
             await ConnectAndHandshake();
 
-            var creqTask = Client.GetAsync("test.collection");
+            var creqTask = Client.SubscribeAsync("test.collection");
             var req = await WebSocket.GetRequestAsync();
             req.AssertMethod("subscribe.test.collection");
             req.SendResult(new JObject { { "collections", new JObject {
@@ -137,16 +137,16 @@ namespace ResgateIO.Client.UnitTests
             var collection1 = await creqTask as ResCollection;
             Test.AssertEqualJSON(Test.Collection, collection1);
 
-            var collection2 = await Client.GetAsync("test.collection") as ResCollection;
+            var collection2 = await Client.SubscribeAsync("test.collection") as ResCollection;
             Assert.Same(collection1, collection2);
         }
 
         [Fact]
-        public async Task GetAsync_WithParentModel_GetsChildModel()
+        public async Task SubscribeAsync_WithParentModel_GetsChildModel()
         {
             await ConnectAndHandshake();
 
-            var creqTask = Client.GetAsync("test.model.parent");
+            var creqTask = Client.SubscribeAsync("test.model.parent");
             var req = await WebSocket.GetRequestAsync();
             req.AssertMethod("subscribe.test.model.parent");
             req.SendResult(new JObject { { "models", new JObject {

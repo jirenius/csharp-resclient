@@ -17,17 +17,23 @@ namespace ResgateIO.Client.UnitTests
             // Creating a client using a hostUrl string
             var client = new ResClient("ws://127.0.0.1:8080");
 
-            // Getting a model of the default type ResModel
-            var model = await client.GetAsync("example.model") as ResModel;
+            // Subscribing to a model of the default type ResModel
+            var model = await client.SubscribeAsync("example.model") as ResModel;
 
             // Accessing a model value by property
             Console.WriteLine("Model property foo: {0}", model["foo"]);
 
+            // Unsubscribing to a model (same as collection).
+            await client.UnsubscribeAsync("example.model");
+
             // Getting a collection of the default type ResCollection
-            var collection = await client.GetAsync("example.collection") as ResCollection;
+            var collection = await client.SubscribeAsync("example.collection") as ResCollection;
 
             // Accessing a collection value by index
             Console.WriteLine("Collection value at index 0: {0}", collection[0]);
+
+            // Unsubscribing to a collection (same as model).
+            await client.UnsubscribeAsync("example.collection");
         }
 
         /// <summary>
@@ -94,7 +100,7 @@ namespace ResgateIO.Client.UnitTests
             client.RegisterCollectionFactory("example.mails", (client, rid) => new ResCollection<Mail>(client, rid));
 
             // Getting a collection of registered types.
-            var mails = await client.GetAsync("example.mails") as ResCollection<Mail>;
+            var mails = await client.SubscribeAsync("example.mails") as ResCollection<Mail>;
 
             // Iterate over all mails
             foreach (Mail mail in mails)
@@ -114,7 +120,7 @@ namespace ResgateIO.Client.UnitTests
             client.ResourceEvent += client_ResourceEvent;
 
             // Getting a model of the default type ResModel
-            var model = await client.GetAsync("example.model") as ResModel;
+            var model = await client.SubscribeAsync("example.model") as ResModel;
 
             // Listening for model change
             model.ResourceEvent += model_ResourceEvent;
