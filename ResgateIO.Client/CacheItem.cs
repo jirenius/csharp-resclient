@@ -98,6 +98,21 @@ namespace ResgateIO.Client
             subscriptions = 0;
         }
 
+        /// <summary>
+        /// Tries to decrease the virtualSubscription counter with 1 and increase the subscription counter with 1.
+        /// </summary>
+        /// <returns>True if virtualSubscription counter were greater than 0 and subscription counter were 0.</returns>
+        public bool TrySubscribeStale()
+        {
+            if (virtualSubscriptions > 0 && subscriptions == 0)
+            {
+                virtualSubscriptions--;
+                subscriptions++;
+                return true;
+            }
+            return false;
+        }
+
         public void SetResource(ResResource resource, ResourceType resourceType)
         {
             Resource = resource;

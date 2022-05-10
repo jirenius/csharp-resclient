@@ -60,9 +60,25 @@ namespace ResgateIO.Client
             JObject obj = data["values"] as JObject;
             if (obj == null)
             {
-                throw new InvalidOperationException("Change event values propertly is not a json object.");
+                throw new InvalidOperationException("Change event values property is not a json object.");
             }
 
+            var props =  mergeModel(model, obj, false);
+
+            return props == null
+                ? null
+                : new ModelChangeEventArgs
+                {
+                    ResourceID = ev.ResourceID,
+                    EventName = ev.EventName,
+                    Data = ev.Data,
+                    NewValues = props.Item2,
+                    OldValues = props.Item1,
+                };
+        }
+
+        private Tuple<Dictionary<string, object>, Dictionary<string, object>> mergeModel(Dictionary<string, object> model, JObject obj, bool reset)
+        { 
             var indirect = new Dictionary<string, int>();
             var newProps = new Dictionary<string, object>(obj.Count);
             var oldProps = new Dictionary<string, object>(obj.Count);
@@ -104,6 +120,33 @@ namespace ResgateIO.Client
                 }
             }
 
+            // Reset the model where mossing obj properties should be deleted.
+            if (reset)
+            {
+                List<string> deletedKeys = null;
+                foreach (var pair in model)
+                {
+                    if (!obj.ContainsKey(pair.Key))
+                    {
+                        if (deletedKeys == null)
+                        {
+                            deletedKeys = new List<string>();
+                        }
+                        newProps[pair.Key] = ResAction.Delete;
+                        oldProps[pair.Key] = pair.Value;
+                        deletedKeys.Add(pair.Key);
+                        modifyIndirect(indirect, pair.Value, -1);
+                    }
+                }
+                if (deletedKeys != null)
+                {
+                    foreach (var key in deletedKeys)
+                    {
+                        model.Remove(key);
+                    }
+                }
+            }
+
             // If no properties were changed, trigger no event.
             if (newProps.Count == 0)
             {
@@ -125,14 +168,7 @@ namespace ResgateIO.Client
                 }
             }
 
-            return new ModelChangeEventArgs
-            {
-                ResourceID = ev.ResourceID,
-                EventName = ev.EventName,
-                Data = ev.Data,
-                NewValues = newProps,
-                OldValues = oldProps,
-            };
+            return new Tuple<Dictionary<string, object>, Dictionary<string, object>>(oldProps, newProps);
         }
 
         public object InitResource(ResResource resource, JToken data)
@@ -167,9 +203,29 @@ namespace ResgateIO.Client
             return props;
         }
 
-        public ResourceEventArgs[] SynchronizeResource(object resource, JToken data)
+        public ResourceEventArgs[] SynchronizeResource(string rid, object resource, JToken data)
         {
-            throw new NotImplementedException();
+            var model = (Dictionary<string, object>)resource;
+            JObject obj = data as JObject;
+            if (obj == null)
+            {
+                throw new InvalidOperationException("Model data is not a json object.");
+            }
+
+
+            var props = mergeModel(model, obj, false);
+
+            return props == null
+                ? null
+                : new ResourceEventArgs[] {
+                    new ModelChangeEventArgs
+                    {
+                        ResourceID = rid,
+                        EventName = "change",
+                        NewValues = props.Item2,
+                        OldValues = props.Item1,
+                    }
+                };
         }
 
         public IEnumerable<object> GetResourceValues(object resource)

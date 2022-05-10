@@ -57,10 +57,11 @@ namespace ResgateIO.Client
         /// <summary>
         /// Synchronize the internal resource returned from InitResource.
         /// </summary>
+        /// <param name="rid">Resource ID.</param>
         /// <param name="resource">Resource as returned from InitResource.</param>
         /// <param name="data">Resource data.</param>
         /// <returns>Returns a sequence of events to produce the new state.</returns>
-        ResourceEventArgs[] SynchronizeResource(object resource, JToken data);
+        ResourceEventArgs[] SynchronizeResource(string rid, object resource, JToken data);
 
         /// <summary>
         /// Gets an values stored in the resource.

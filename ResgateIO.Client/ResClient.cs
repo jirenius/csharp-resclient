@@ -66,6 +66,7 @@ namespace ResgateIO.Client
         {
             cache = new ItemCache(this);
             cache.Error += new ErrorEventHandler(onError);
+            cache.ResourceEvent += onCacheResourceEvent;
         }
 
         /// <summary>
@@ -476,11 +477,7 @@ namespace ResgateIO.Client
         {
             try
             {
-                ev = cache.HandleEvent(ev);
-                if (ev != null)
-                {
-                    ResourceEvent?.Invoke(this, ev);
-                }
+                cache.HandleEvent(ev);
             }
             catch (Exception ex)
             {
@@ -489,7 +486,14 @@ namespace ResgateIO.Client
         }
         private void onError(object sender, ErrorEventArgs ev)
         {
+            // Bubble up
             Error?.Invoke(this, ev);
+        }
+
+        private void onCacheResourceEvent(object sender, ResourceEventArgs ev)
+        {
+            // Bubble up
+            ResourceEvent?.Invoke(this, ev);
         }
 
         protected virtual void Dispose(bool disposing)

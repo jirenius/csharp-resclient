@@ -160,7 +160,7 @@ namespace ResgateIO.Client
             };
         }
 
-        public ResourceEventArgs[] SynchronizeResource(object resource, JToken data)
+        public ResourceEventArgs[] SynchronizeResource(string rid, object resource, JToken data)
         {
             throw new NotImplementedException();
         }

@@ -47,6 +47,7 @@ namespace ResgateIO.Client
 
         // Events
         public event ErrorEventHandler Error;
+        public event EventHandler<ResourceEventArgs> ResourceEvent;
 
         // Cache dictionary exposed for test assertion purpose.
         public IReadOnlyDictionary<string, CacheItem> Cache { get { return cache; } }
@@ -205,7 +206,7 @@ namespace ResgateIO.Client
                 foreach (CacheItem ci in cache.Values)
                 {
                     ci.SetStale();
-                }                
+                }
             }
         }
 
@@ -216,9 +217,33 @@ namespace ResgateIO.Client
                 foreach (var pair in cache)
                 {
                     var ci = pair.Value;
-                    if (ci.IsStale)
+                    if (ci.TrySubscribeStale())
                     {
-                        ci.SetStale();
+                        Task.Run(async () =>
+                        {
+                            JToken result = null;
+                            try
+                            {
+                                result = await subscribe(ci);
+                                AddResources(result);
+                            }
+                            catch (Exception ex)
+                            {
+                                ci.ClearSubscriptions();
+                                TryDelete(ci);
+
+                                ResException resException = ex as ResException;
+
+                                invokeEvent(ci, new ResourceUnsubscribeEventArgs
+                                {
+                                    ResourceID = ci.ResourceID,
+                                    EventName = "unsubscribe",
+                                    Reason = resException != null
+                                        ? resException.Error
+                                        : new ResError(ex.Message),
+                                });
+                            }
+                        });
                     }
                 }
             }
@@ -470,7 +495,7 @@ namespace ResgateIO.Client
             return ci;
         }
 
-        public ResourceEventArgs HandleEvent(ResourceEventArgs ev)
+        public void HandleEvent(ResourceEventArgs ev)
         {
             CacheItem ci = GetItem(ev.ResourceID);
 
@@ -478,7 +503,7 @@ namespace ResgateIO.Client
             // Should not be needed unless the gateway acts up.
             if (!ci.IsSet)
             {
-                return null;
+                return;
             }
 
             if (ev.EventName == "unsubscribe")
@@ -491,8 +516,14 @@ namespace ResgateIO.Client
                 ev = type.HandleEvent(ci.InternalResource, ev);
             }
 
+            invokeEvent(ci, ev);
+        }
+
+        private void invokeEvent(CacheItem ci, ResourceEventArgs ev)
+        {
             if (ev != null)
             {
+                // Invoke event for resource
                 try
                 {
                     ci.Resource.HandleEvent(ev);
@@ -501,8 +532,17 @@ namespace ResgateIO.Client
                 {
                     Error?.Invoke(this, new ErrorEventArgs(ex));
                 }
+
+                // Invoke event for global listeners
+                try
+                {
+                    ResourceEvent?.Invoke(this, ev);
+                }
+                catch (Exception ex)
+                {
+                    Error?.Invoke(this, new ErrorEventArgs(ex));
+                }
             }
-            return ev;
         }
 
         /// <summary>
@@ -573,7 +613,16 @@ namespace ResgateIO.Client
                     IResourceType type = resourceTypes[i];
                     foreach (KeyValuePair<string, JToken> pair in sync)
                     {
-                        type.SynchronizeResource(cache[pair.Key].Resource, pair.Value);
+                        var ci = cache[pair.Key];
+                        var evs = type.SynchronizeResource(ci.ResourceID, ci.Resource, pair.Value);
+
+                        if (evs != null)
+                        {
+                            foreach (var ev in evs)
+                            {
+                                invokeEvent(ci, ev);
+                            }
+                        }
                     }
                 }
             }
