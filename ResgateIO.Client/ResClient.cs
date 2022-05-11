@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 namespace ResgateIO.Client
 {
 
-    public class ResClient : IDisposable
+    public class ResClient : IDisposable, IResClient
     {
         // Constants
         /// <value>Supported RES protocol version.</value>
@@ -136,7 +136,7 @@ namespace ResgateIO.Client
         }
 
         private async Task connectAsync()
-        { 
+        {
             var ws = await wsFactory();
             ws.OnClose += onClose;
 
@@ -457,13 +457,15 @@ namespace ResgateIO.Client
             }
 
             var v = 0;
-            try {
+            try
+            {
                 var parts = version.Split('.');
                 foreach (var part in parts)
                 {
                     v = v * 1000 + Int32.Parse(part);
                 }
-            } catch (Exception)
+            }
+            catch (Exception)
             {
                 return 0;
             }

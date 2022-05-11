@@ -162,7 +162,6 @@ namespace ResgateIO.Client
 
         public void SynchronizeResource(string rid, object resource, JToken data, Action<ResourceEventArgs> onEvent)
         {
-
             //var collection = (List<object>)resource;
             //JArray arr = data as JArray;
             //if (arr == null)
