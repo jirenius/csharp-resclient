@@ -66,8 +66,6 @@ namespace ResgateIO.Client.UnitTests
             Test.AssertEqualJSON(new JObject { { "foo", "bar" } }, model);
         }
 
-
-
         [Fact]
         public async Task SubscribeAsync_WithErrorResponse_ThrowsResException()
         {

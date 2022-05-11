@@ -47,7 +47,6 @@ namespace ResgateIO.Client
             this.ws = ws;
             this.serializerSettings = serializerSettings;
             this.ws.OnMessage += onMessage;
-            this.ws.OnClose += onClose;
         }
 
         private void onMessage(object sender, MessageEventArgs e)
@@ -77,11 +76,6 @@ namespace ResgateIO.Client
             {
                 throw new InvalidOperationException(String.Format("Invalid message from server: {0}", msg));
             }
-        }
-
-        private void onClose(object sender, EventArgs e)
-        {
-            throw new NotImplementedException();
         }
 
         private void handleResponse(MessageDto rpcmsg)
@@ -115,7 +109,7 @@ namespace ResgateIO.Client
             {
                 // Event
                 var idx = rpcmsg.Event.LastIndexOf('.');
-		        if (idx <  0 || idx == rpcmsg.Event.Length - 1) {
+                if (idx <  0 || idx == rpcmsg.Event.Length - 1) {
                     throw new InvalidOperationException(String.Format("Malformed event name: {0}", rpcmsg.Event));
                 }
                 var rid = rpcmsg.Event.Substring(0, idx);

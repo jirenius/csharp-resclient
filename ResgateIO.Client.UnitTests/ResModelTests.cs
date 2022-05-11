@@ -233,5 +233,114 @@ namespace ResgateIO.Client.UnitTests
             var ev = await NextError();
             Assert.Equal(ex, ev.GetException());
         }
+
+        public static IEnumerable<object[]> Synchronize_WithPrimitiveModelChanges_EmitsChangeEvent_Data => new List<object[]>
+        {
+            // Change single value
+            new object[] { new JObject { { "string", "bar" }, { "int", 42 } }, new JObject { { "string", "foo" } }, new JObject { { "string", "bar" } } },
+            // Change multiple values
+            new object[] { new JObject { { "string", "bar" }, { "int", 12 } }, new JObject { { "string", "foo" }, { "int", 42 } }, new JObject { { "string", "bar" }, { "int", 12 } } },
+            // Add new value
+            new object[] { new JObject { { "string", "foo" }, { "int", 42 }, { "new", true } }, new JObject { { "new", ResAction.Delete } }, new JObject { { "new", true } } },
+            // Delete value
+            new object[] { new JObject { { "string", "foo" } }, new JObject { { "int", 42 } }, new JObject { { "int", ResAction.Delete } } },
+        };
+
+        [Theory, MemberData(nameof(Synchronize_WithPrimitiveModelChanges_EmitsChangeEvent_Data))]
+        public async Task Synchronize_WithPrimitiveModelChanges_EmitsChangeEvent(JObject resyncModel, object oldValues, object newValues)
+        {
+            await ConnectAndHandshake();
+
+            var creqTask = Client.SubscribeAsync("test.model");
+            var req = await WebSocket.GetRequestAsync();
+            req.AssertMethod("subscribe.test.model");
+            req.SendResult(new JObject
+            {
+                { "models", new JObject
+                    {
+                        { "test.model", new JObject { { "string", "foo" }, { "int", 42 } } }
+                    }
+                }
+            });
+            var model = await creqTask as ResModel;
+
+            // Disconnect and reconnect
+            await WebSocket.DisconnectAsync();
+            await ConnectAndHandshake();
+
+            // Expect resynchronization get request and generated change event
+            var completionSource = new TaskCompletionSource<ResourceEventArgs>();
+            EventHandler<ResourceEventArgs> h = (object sender, ResourceEventArgs e) => completionSource.SetResult(e);
+            model.ResourceEvent += h;
+            var req2 = await WebSocket.GetRequestAsync();
+            req2.AssertMethod("subscribe.test.model");
+            req2.SendResult(new JObject
+            {
+                { "models", new JObject
+                    {
+                        { "test.model", resyncModel }
+                    }
+                }
+            });
+            var ev = await completionSource.Task;
+
+            model.ResourceEvent -= h;
+
+            Assert.IsType<ModelChangeEventArgs>(ev);
+            var changeEv = (ModelChangeEventArgs)ev;
+
+            Test.AssertEqualJSON(oldValues, changeEv.OldValues);
+            Test.AssertEqualJSON(newValues, changeEv.NewValues);
+            Test.AssertEqualJSON(resyncModel, model);
+        }
+
+        [Fact]
+        public async Task Synchronize_WithPrimitiveModelUnchanged_EmitsNoEvents()
+        {
+            await ConnectAndHandshake();
+
+            var creqTask = Client.SubscribeAsync("test.model");
+            var req = await WebSocket.GetRequestAsync();
+            req.AssertMethod("subscribe.test.model");
+            req.SendResult(new JObject
+            {
+                { "models", new JObject
+                    {
+                        { "test.model", Test.Model }
+                    }
+                }
+            });
+            var model = await creqTask as ResModel;
+
+            // Disconnect and reconnect
+            await WebSocket.DisconnectAsync();
+            await ConnectAndHandshake();
+
+            // Expect resynchronization get request
+            var completionSource = new TaskCompletionSource<ResourceEventArgs>();
+            EventHandler<ResourceEventArgs> h = (object sender, ResourceEventArgs e) => completionSource.SetResult(e);
+            model.ResourceEvent += h;
+            var req2 = await WebSocket.GetRequestAsync();
+            req2.AssertMethod("subscribe.test.model");
+            // Send identical model
+            req2.SendResult(new JObject
+            {
+                { "models", new JObject
+                    {
+                        { "test.model", Test.Model }
+                    }
+                }
+            });
+
+            // Send custom event
+            byte[] eventMsg = System.Text.Encoding.UTF8.GetBytes("{\"event\":\"test.model.custom\",\"data\":null}");
+            WebSocket.SendMessage(eventMsg);
+            var ev = await completionSource.Task;
+
+            model.ResourceEvent -= h;
+
+            // Verify we got the custom event and not a change event.
+            Assert.Equal("custom", ev.EventName);
+        }
     }
 }

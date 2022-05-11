@@ -213,7 +213,7 @@ namespace ResgateIO.Client
             }
 
 
-            var props = mergeModel(model, obj, false);
+            var props = mergeModel(model, obj, true);
 
             return props == null
                 ? null

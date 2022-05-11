@@ -614,7 +614,7 @@ namespace ResgateIO.Client
                     foreach (KeyValuePair<string, JToken> pair in sync)
                     {
                         var ci = cache[pair.Key];
-                        var evs = type.SynchronizeResource(ci.ResourceID, ci.Resource, pair.Value);
+                        var evs = type.SynchronizeResource(ci.ResourceID, ci.InternalResource, pair.Value);
 
                         if (evs != null)
                         {
