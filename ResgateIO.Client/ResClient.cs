@@ -46,9 +46,6 @@ namespace ResgateIO.Client
         private const string legacyProtocol = "1.1.1";
         private static int legacyProtocolVersion = versionToInt(legacyProtocol);
 
-        private const int resourceTypeModel = 0;
-        private const int resourceTypeCollection = 1;
-
         public ResClient(string hostUrl)
         {
             this.hostUrl = hostUrl;
@@ -484,6 +481,7 @@ namespace ResgateIO.Client
                 Error?.Invoke(this, new ErrorEventArgs(ex));
             }
         }
+
         private void onError(object sender, ErrorEventArgs ev)
         {
             // Bubble up

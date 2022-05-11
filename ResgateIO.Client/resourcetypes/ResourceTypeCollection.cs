@@ -160,10 +160,31 @@ namespace ResgateIO.Client
             };
         }
 
-        public ResourceEventArgs[] SynchronizeResource(string rid, object resource, JToken data)
+        public void SynchronizeResource(string rid, object resource, JToken data, Action<ResourceEventArgs> onEvent)
         {
-            throw new NotImplementedException();
+
+            //var collection = (List<object>)resource;
+            //JArray arr = data as JArray;
+            //if (arr == null)
+            //{
+            //    throw new InvalidOperationException("Collection data is not a json array.");
+            //}
+
+            //List<object> b = new List<object>(arr.Count);
+            //foreach (var value in arr)
+            //{
+            //    b.Add(cache.ParseValue(value, false));
+            //}
+
+            //patchDiff(
+            //    collection,
+            //    b,
+            //    (id, m, n, idx) => { },
+            //    (id, n, idx) => { },
+            //    (id, m, idx) => { }
+            //);
         }
+
 
         public IEnumerable<object> GetResourceValues(object resource)
         {

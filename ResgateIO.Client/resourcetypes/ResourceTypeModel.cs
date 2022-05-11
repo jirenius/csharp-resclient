@@ -203,7 +203,7 @@ namespace ResgateIO.Client
             return props;
         }
 
-        public ResourceEventArgs[] SynchronizeResource(string rid, object resource, JToken data)
+        public void SynchronizeResource(string rid, object resource, JToken data, Action<ResourceEventArgs> onEvent)
         {
             var model = (Dictionary<string, object>)resource;
             JObject obj = data as JObject;
@@ -212,20 +212,15 @@ namespace ResgateIO.Client
                 throw new InvalidOperationException("Model data is not a json object.");
             }
 
-
             var props = mergeModel(model, obj, true);
 
-            return props == null
-                ? null
-                : new ResourceEventArgs[] {
-                    new ModelChangeEventArgs
-                    {
-                        ResourceID = rid,
-                        EventName = "change",
-                        NewValues = props.Item2,
-                        OldValues = props.Item1,
-                    }
-                };
+            onEvent(new ModelChangeEventArgs
+            {
+                ResourceID = rid,
+                EventName = "change",
+                NewValues = props.Item2,
+                OldValues = props.Item1,
+            });
         }
 
         public IEnumerable<object> GetResourceValues(object resource)

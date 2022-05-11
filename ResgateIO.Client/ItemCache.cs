@@ -614,15 +614,10 @@ namespace ResgateIO.Client
                     foreach (KeyValuePair<string, JToken> pair in sync)
                     {
                         var ci = cache[pair.Key];
-                        var evs = type.SynchronizeResource(ci.ResourceID, ci.InternalResource, pair.Value);
-
-                        if (evs != null)
+                        type.SynchronizeResource(ci.ResourceID, ci.InternalResource, pair.Value, (ev) =>
                         {
-                            foreach (var ev in evs)
-                            {
-                                invokeEvent(ci, ev);
-                            }
-                        }
+                            invokeEvent(ci, ev);
+                        });
                     }
                 }
             }
