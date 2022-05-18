@@ -233,5 +233,143 @@ namespace ResgateIO.Client.UnitTests
             var ev = await NextError();
             Assert.Equal(ex, ev.GetException());
         }
+
+        public static IEnumerable<object[]> Synchronize_WithPrimitiveCollection_EmitsExpectedEvents_Data => new List<object[]>
+        {
+            // Add single value
+            new object[] { new JArray { "A", "B" }, new JArray { "C", "A", "B" }, 1},
+        };
+
+        [Theory, MemberData(nameof(Synchronize_WithPrimitiveCollection_EmitsExpectedEvents_Data))]
+        public async Task Synchronize_WithPrimitiveCollection_EmitsExpectedEvents(JArray initCollection, JArray resyncCollection, int expectedEvents)
+        {
+            await ConnectAndHandshake();
+
+            var creqTask = Client.SubscribeAsync("test.collection");
+            var req = await WebSocket.GetRequestAsync();
+            req.AssertMethod("subscribe.test.collection");
+            req.SendResult(new JObject
+            {
+                { "collections", new JObject
+                    {
+                        { "test.collection", initCollection }
+                    }
+                }
+            });
+            var collection = await creqTask as ResCollection;
+            // Clone the collection to later verify the events produce the same endresult
+            var clone = new List<object>(collection.Count);
+            foreach (var item in collection)
+            {
+                clone.Add(item);
+            }
+
+            // Disconnect and reconnect
+            await WebSocket.DisconnectAsync();
+            await ConnectAndHandshake();
+
+            // Expect resynchronization get request and generated change event
+            var completionSource = new TaskCompletionSource<ResourceEventArgs>();
+            EventHandler<ResourceEventArgs> h = (object sender, ResourceEventArgs e) => completionSource.SetResult(e);
+            collection.ResourceEvent += h;
+            var req2 = await WebSocket.GetRequestAsync();
+            req2.AssertMethod("subscribe.test.collection");
+            req2.SendResult(new JObject
+            {
+                { "collections", new JObject
+                    {
+                        { "test.collection", resyncCollection }
+                    }
+                }
+            });
+
+            // Follow resync with custom event to flush the events
+            byte[] eventMsg = System.Text.Encoding.UTF8.GetBytes("{\"event\":\"test.collection.custom\",\"data\":null}");
+            WebSocket.SendMessage(eventMsg);
+
+            List<ResourceEventArgs> events = new List<ResourceEventArgs>();
+            while (true)
+            {
+                var ev = await completionSource.Task;
+                if (ev.EventName == "custom")
+                {
+                    break;
+                }
+                events.Add(ev);
+            }
+            collection.ResourceEvent -= h;
+
+            Assert.Equal(expectedEvents, events.Count);
+
+            foreach (var ev in events)
+            {
+                switch (ev.EventName)
+                {
+                    case "add":
+                        Assert.IsType<CollectionAddEventArgs>(ev);
+                        var addEv = (CollectionAddEventArgs)ev;
+                        clone.Insert(addEv.Index, addEv.Value);
+                        break;
+                    case "remove":
+                        Assert.IsType<CollectionRemoveEventArgs>(ev);
+                        var removeEv = (CollectionRemoveEventArgs)ev;
+                        clone.RemoveAt(removeEv.Index);
+                        break;
+                    default:
+                        throw new Exception(String.Format("Unexpected event: {0}", ev.EventName));
+                }
+            }
+
+            Test.AssertEqualJSON(resyncCollection, clone);
+        }
+
+        [Fact]
+        public async Task Synchronize_WithPrimitiveCollectionlUnchanged_EmitsNoEvents()
+        {
+            await ConnectAndHandshake();
+
+            var creqTask = Client.SubscribeAsync("test.collection");
+            var req = await WebSocket.GetRequestAsync();
+            req.AssertMethod("subscribe.test.collection");
+            req.SendResult(new JObject
+            {
+                { "collections", new JObject
+                    {
+                        { "test.collection", Test.Collection }
+                    }
+                }
+            });
+            var collection = await creqTask as ResCollection;
+
+            // Disconnect and reconnect
+            await WebSocket.DisconnectAsync();
+            await ConnectAndHandshake();
+
+            // Expect resynchronization get request
+            var completionSource = new TaskCompletionSource<ResourceEventArgs>();
+            EventHandler<ResourceEventArgs> h = (object sender, ResourceEventArgs e) => completionSource.SetResult(e);
+            collection.ResourceEvent += h;
+            var req2 = await WebSocket.GetRequestAsync();
+            req2.AssertMethod("subscribe.test.collection");
+            // Send identical collection
+            req2.SendResult(new JObject
+            {
+                { "collections", new JObject
+                    {
+                        { "test.collection", Test.Collection }
+                    }
+                }
+            });
+
+            // Send custom event
+            byte[] eventMsg = System.Text.Encoding.UTF8.GetBytes("{\"event\":\"test.collection.custom\",\"data\":null}");
+            WebSocket.SendMessage(eventMsg);
+            var ev = await completionSource.Task;
+
+            collection.ResourceEvent -= h;
+
+            // Verify we got the custom event and not a change event.
+            Assert.Equal("custom", ev.EventName);
+        }
     }
 }
