@@ -21,6 +21,12 @@ namespace ResgateIO.Client
 
         private ItemCache cache;
 
+        private struct AddValue
+        {
+            public int ItemIdx;
+            public int IdxOffset;
+        }
+
         public ResourceTypeCollection(ItemCache cache)
         {
             this.cache = cache;
@@ -162,26 +168,163 @@ namespace ResgateIO.Client
 
         public void SynchronizeResource(string rid, object resource, JToken data, Action<ResourceEventArgs> onEvent)
         {
-            //var collection = (List<object>)resource;
-            //JArray arr = data as JArray;
-            //if (arr == null)
-            //{
-            //    throw new InvalidOperationException("Collection data is not a json array.");
-            //}
+            var collection = (List<object>)resource;
+            JArray arr = data as JArray;
+            if (arr == null)
+            {
+                throw new InvalidOperationException("Collection data is not a json array.");
+            }
 
-            //List<object> b = new List<object>(arr.Count);
-            //foreach (var value in arr)
-            //{
-            //    b.Add(cache.ParseValue(value, false));
-            //}
+            List<object> a = new List<object>(collection.Count);
+            foreach (var value in collection)
+            {
+                a.Add(value);
+            }
 
-            //patchDiff(
-            //    collection,
-            //    b,
-            //    (id, m, n, idx) => { },
-            //    (id, n, idx) => { },
-            //    (id, m, idx) => { }
-            //);
+            List<object> b = new List<object>(arr.Count);
+            foreach (var value in arr)
+            {
+                b.Add(cache.ParseValue(value, false));
+            }
+
+            patchDiff(
+                a,
+                b,
+                (value, idx) => {
+                    // Handle add event
+                    collection.Insert(idx, value);
+                    var resresource = value as ResResource;
+                    if (resresource != null)
+                    {
+                        var ci = cache.GetItem(resresource.ResourceID);
+                        ci.AddReference(1);
+                    };
+                    onEvent(new CollectionAddEventArgs
+                    {
+                        ResourceID = rid,
+                        EventName = "add",
+                        Index = idx,
+                        Value = value,
+                    });
+                },
+                (idx) => {
+                    // Handle remove event
+                    var value = collection[idx];
+                    collection.RemoveAt(idx);
+
+                    var resresource = value as ResResource;
+                    if (resresource != null)
+                    {
+                        var ci = cache.GetItem(resresource.ResourceID);
+                        ci.AddReference(-1);
+                        cache.TryDelete(ci);
+                    };
+
+                    onEvent(new CollectionRemoveEventArgs
+                    {
+                        ResourceID = rid,
+                        EventName = "remove",
+                        Index = idx,
+                        Value = value,
+                    });
+                }
+            );
+        }
+
+        public void patchDiff(List<object> a, List<object> b, Action<object, int> onAdd, Action<int> onRemove)
+        {
+
+            // Do a LCS matric calculation
+            // https://en.wikipedia.org/wiki/Longest_common_subsequence_problem
+            //var t, i, j, s = 0, aa, bb, m = a.Count, n = b.Count;
+            List<object> aa = a;
+            List<object> bb = b;
+            int i, j;
+            int s = 0;
+            int m = a.Count;
+            int n = b.Count;
+
+            // Trim of matches at the start and end
+            while (s < m && s < n && Object.Equals(a[s], b[s]))
+            {
+                s++;
+            }
+            if (s == m && s == n)
+            {
+                return;
+            }
+            while (s < m && s < n && Object.Equals(a[m - 1], b[n - 1]))
+            {
+                m--;
+                n--;
+            }
+
+            if (s > 0 || m < a.Count)
+            {
+                aa = a.GetRange(s, m - s);
+                m = aa.Count;
+            }
+            if (s > 0 || n < b.Count)
+            {
+                bb = b.GetRange(s, n - s);
+                n = bb.Count;
+            }
+
+            // Create matrix and initialize it
+            var c = new int[m + 1, n + 1];
+
+            for (i = 0; i < m; i++)
+            {
+                for (j = 0; j < n; j++)
+                {
+                    c[i + 1, j + 1] = Object.Equals(aa[i], bb[j])
+                        ? c[i, j] + 1
+                        : Math.Max(c[i + 1, j], c[i, j + 1]);
+                }
+            }
+
+            int idx = m + s;
+            i = m;
+            j = n;
+            int r = 0;
+            var adds = new List<AddValue>();
+            while (true)
+            {
+                m = i - 1;
+                n = j - 1;
+                if (i > 0 && j > 0 && Object.Equals(aa[m], bb[n]))
+                {
+                    i--;
+                    j--;
+                }
+                else if (j > 0 && (i == 0 || c[i, n] >= c[m, j]))
+                {
+                    adds.Add(new AddValue
+                    {
+                        ItemIdx = n,
+                        IdxOffset = idx + r
+                    });
+                    j--;
+                }
+                else if (i > 0 && (j == 0 || c[i, n] < c[m, j]))
+                {
+                    onRemove(--idx);
+                    r++;
+                    i--;
+                }
+                else
+                {
+                    break;
+                }
+            }
+
+            // Do the adds
+            var len = adds.Count - 1;
+            for (i = len; i >= 0; i--)
+            {
+                var add = adds[i];
+                onAdd(bb[add.ItemIdx], add.IdxOffset - r  + len - i);
+            }
         }
 
 

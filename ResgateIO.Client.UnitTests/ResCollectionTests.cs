@@ -270,7 +270,18 @@ namespace ResgateIO.Client.UnitTests
 
             // Expect resynchronization get request and generated change event
             var completionSource = new TaskCompletionSource<ResourceEventArgs>();
-            EventHandler<ResourceEventArgs> h = (object sender, ResourceEventArgs e) => completionSource.SetResult(e);
+            List<ResourceEventArgs> events = new List<ResourceEventArgs>();
+            EventHandler<ResourceEventArgs> h = (object sender, ResourceEventArgs e) =>
+            {
+                if (e.EventName == "custom")
+                {
+                    completionSource.SetResult(e);
+                }
+                else
+                {
+                    events.Add(e);
+                }
+            };
             collection.ResourceEvent += h;
             var req2 = await WebSocket.GetRequestAsync();
             req2.AssertMethod("subscribe.test.collection");
@@ -287,16 +298,7 @@ namespace ResgateIO.Client.UnitTests
             byte[] eventMsg = System.Text.Encoding.UTF8.GetBytes("{\"event\":\"test.collection.custom\",\"data\":null}");
             WebSocket.SendMessage(eventMsg);
 
-            List<ResourceEventArgs> events = new List<ResourceEventArgs>();
-            while (true)
-            {
-                var ev = await completionSource.Task;
-                if (ev.EventName == "custom")
-                {
-                    break;
-                }
-                events.Add(ev);
-            }
+            await completionSource.Task;
             collection.ResourceEvent -= h;
 
             Assert.Equal(expectedEvents, events.Count);
