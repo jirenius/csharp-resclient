@@ -52,6 +52,7 @@ namespace ResgateIO.Client
             if (ws.State == WebSocketState.Open)
             {
                 cts.CancelAfter(TimeSpan.FromSeconds(2));
+                await ws.CloseOutputAsync(WebSocketCloseStatus.Empty, "", CancellationToken.None);
                 await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "", CancellationToken.None);
             }
             ws.Dispose();
@@ -72,12 +73,11 @@ namespace ResgateIO.Client
 
         private async Task ReceiveLoop()
         {
-            var loopToken = cts.Token;
             WebSocketReceiveResult receiveResult = null;
             var buffer = new byte[ReceiveBufferSize];
             try
             {
-                while (!loopToken.IsCancellationRequested)
+                while (!cts.Token.IsCancellationRequested)
                 {
                     using (var inputStream = new MemoryStream(ReceiveBufferSize))
                     {
@@ -98,6 +98,10 @@ namespace ResgateIO.Client
                 }
             }
             catch (TaskCanceledException) { }
+            finally
+            {
+                OnClose?.Invoke(this, EventArgs.Empty);
+            }
         }
 
         private void MessageReceived(byte[] msg)
@@ -110,7 +114,17 @@ namespace ResgateIO.Client
 
         public void Dispose()
         {
-            DisconnectAsync().Wait();
+            if (ws != null)
+            {
+                if (ws.State == WebSocketState.Open)
+                {
+                    cts.CancelAfter(TimeSpan.FromSeconds(2));
+                    ws.CloseOutputAsync(WebSocketCloseStatus.Empty, "", CancellationToken.None);
+                    ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "", CancellationToken.None);
+                }
+                try { if (ws != null) { ws.Dispose(); ws = null; } } catch (Exception) { }
+                try { if (cts != null) { cts.Dispose(); cts = null; } } catch (Exception) { }
+            }
         }
     }
 }
