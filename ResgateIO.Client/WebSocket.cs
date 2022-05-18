@@ -52,7 +52,6 @@ namespace ResgateIO.Client
             if (ws.State == WebSocketState.Open)
             {
                 cts.CancelAfter(TimeSpan.FromSeconds(2));
-                await ws.CloseOutputAsync(WebSocketCloseStatus.Empty, "", CancellationToken.None);
                 await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "", CancellationToken.None);
             }
             ws.Dispose();
@@ -119,7 +118,6 @@ namespace ResgateIO.Client
                 if (ws.State == WebSocketState.Open)
                 {
                     cts.CancelAfter(TimeSpan.FromSeconds(2));
-                    ws.CloseOutputAsync(WebSocketCloseStatus.Empty, "", CancellationToken.None);
                     ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "", CancellationToken.None);
                 }
                 try { if (ws != null) { ws.Dispose(); ws = null; } } catch (Exception) { }
