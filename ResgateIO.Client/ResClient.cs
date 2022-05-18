@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 namespace ResgateIO.Client
 {
 
-    public class ResClient : IDisposable, IResClient
+    public class ResClient : IResClient
     {
         // Constants
         /// <value>Supported RES protocol version.</value>
