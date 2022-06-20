@@ -238,6 +238,12 @@ namespace ResgateIO.Client.UnitTests
         {
             // Add single value
             new object[] { new JArray { "A", "B" }, new JArray { "C", "A", "B" }, 1},
+            new object[] { new JArray { "A", "B" }, new JArray { "A", "C", "B" }, 1},
+            new object[] { new JArray { "A", "B" }, new JArray { "A", "B", "C" }, 1},
+            // Remove single value            
+            new object[] { new JArray { "A", "B", "C" }, new JArray { "B", "C" }, 1},
+            new object[] { new JArray { "A", "B", "C" }, new JArray { "A", "C" }, 1},
+            new object[] { new JArray { "A", "B", "C" }, new JArray { "A", "B" }, 1},
         };
 
         [Theory, MemberData(nameof(Synchronize_WithPrimitiveCollection_EmitsExpectedEvents_Data))]
@@ -295,6 +301,7 @@ namespace ResgateIO.Client.UnitTests
             });
 
             // Follow resync with custom event to flush the events
+            //await Task.Delay(10);
             byte[] eventMsg = System.Text.Encoding.UTF8.GetBytes("{\"event\":\"test.collection.custom\",\"data\":null}");
             WebSocket.SendMessage(eventMsg);
 
