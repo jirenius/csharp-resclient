@@ -238,15 +238,18 @@ namespace ResgateIO.Client
             return ci;
         }
 
-        public void SetAllStale()
+        public bool SetAllStale()
         {
+            bool hasStale = false;
             lock (cacheLock)
             {
                 foreach (CacheItem ci in cache.Values)
                 {
                     ci.SetStale();
+                    hasStale = true;
                 }
             }
+            return hasStale;
         }
 
         public void SubscribeStale(Action<CacheItem, ResponseCallback> subscribe)

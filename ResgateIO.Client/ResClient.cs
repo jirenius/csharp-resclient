@@ -2,6 +2,7 @@
 using Newtonsoft.Json.Linq;
 using System;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace ResgateIO.Client
@@ -30,6 +31,8 @@ namespace ResgateIO.Client
         private readonly Func<Task<IWebSocket>> wsFactory;
         private JsonSerializerSettings serializerSettings;
         private Func<ResClient, Task> onConnectCallback;
+        private int reconnectDelay = 3000;
+        private CancellationTokenSource reconnectTokenSource;
         private object connectLock = new object();
         private Task connectTask;
         private int protocol;
@@ -91,6 +94,30 @@ namespace ResgateIO.Client
         }
 
         /// <summary>
+        /// Sets the reconnection delay.
+        /// Must be called before connecting.
+        /// </summary>
+        /// <param name="milliseconds">Delay in milliseconds.</param>
+        /// <returns>The ResClient instance.</returns>
+        public ResClient SetReconnectDelay(int milliseconds)
+        {
+            reconnectDelay = milliseconds;
+            return this;
+        }
+
+        /// <summary>
+        /// Sets the reconnection delay.
+        /// Must be called before connecting.
+        /// </summary>
+        /// <param name="duration">Duration time span.</param>
+        /// <returns>The ResClient instance.</returns>
+        public ResClient SetReconnectDelay(TimeSpan duration)
+        {
+            reconnectDelay = duration.Milliseconds;
+            return this;
+        }
+
+        /// <summary>
         /// Registers a model factory for a specific resource pattern.
         /// The pattern may contain wildcards:
         /// * (asterisk) is a partial wildcard.
@@ -125,6 +152,11 @@ namespace ResgateIO.Client
             Task task;
             lock (connectLock)
             {
+                if (this.reconnectTokenSource != null)
+                {
+                    this.reconnectTokenSource.Cancel();
+                    this.reconnectTokenSource = null;
+                }
                 if (connectTask == null)
                 {
                     connectTask = connectAsync();
@@ -182,7 +214,16 @@ namespace ResgateIO.Client
             finally
             {
                 disposeRpc();
-                online = false;
+                lock (connectLock)
+                {
+                    online = false;
+
+                    if (this.reconnectTokenSource != null)
+                    {
+                        this.reconnectTokenSource.Cancel();
+                        this.reconnectTokenSource = null;
+                    }
+                }
             }
         }
 
@@ -194,8 +235,52 @@ namespace ResgateIO.Client
         /// <exception cref="NotImplementedException"></exception>
         private void onClose(object sender, EventArgs e)
         {
-            cache.SetAllStale();
+            var hasStale = cache.SetAllStale();
             disposeRpc();
+
+            lock (connectLock)
+            {
+                if (online && hasStale)
+                {
+                    // Start timer
+                }
+                else
+                {
+                    online = false;
+                }
+            }
+        }
+
+        private void startReconnectTimer()
+        {
+            if (!online)
+            {
+                return;
+            }
+
+            if (this.reconnectTokenSource != null)
+            {
+                this.reconnectTokenSource.Cancel();
+                this.reconnectTokenSource = null;
+            }
+
+            this.reconnectTokenSource = new CancellationTokenSource();
+            Task.Delay(reconnectDelay, this.reconnectTokenSource.Token).ContinueWith(async _ =>
+            {
+                try
+                {
+                    await ConnectAsync();
+                }
+                catch (Exception ex)
+                {
+                    onError(this, new ErrorEventArgs(ex));
+                    lock (connectLock)
+                    {
+                        startReconnectTimer();
+                    }
+                }
+            });
+           
         }
 
         ///// <summary>
