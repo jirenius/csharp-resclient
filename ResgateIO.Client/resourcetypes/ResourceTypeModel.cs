@@ -214,13 +214,16 @@ namespace ResgateIO.Client
 
             var props = mergeModel(model, obj, true);
 
-            onEvent(new ModelChangeEventArgs
+            if (props != null)
             {
-                ResourceID = rid,
-                EventName = "change",
-                NewValues = props.Item2,
-                OldValues = props.Item1,
-            });
+                onEvent(new ModelChangeEventArgs
+                {
+                    ResourceID = rid,
+                    EventName = "change",
+                    NewValues = props.Item2,
+                    OldValues = props.Item1,
+                });
+            }
         }
 
         public IEnumerable<object> GetResourceValues(object resource)

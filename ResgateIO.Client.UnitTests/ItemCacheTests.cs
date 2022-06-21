@@ -395,7 +395,7 @@ namespace ResgateIO.Client.UnitTests
             }
 
             // Remove the subscribed resource
-            await itemCache.Unsubscribe(resourceSets[0].RID, (rid) => Task.CompletedTask);
+            await itemCache.Unsubscribe(resourceSets[0].RID, (rid, callback) => callback(null, null));
 
             var cache = itemCache.Cache;
             Assert.Equal(expectedCacheEntries.Length, cache.Count);

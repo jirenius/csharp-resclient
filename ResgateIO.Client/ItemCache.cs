@@ -106,7 +106,7 @@ namespace ResgateIO.Client
             rt.Patterns.Add(pattern, factory);
         }
 
-        public CacheItem Subscribe(string rid, Func<CacheItem, Task<JToken>> subscribe)
+        public CacheItem Subscribe(string rid, Action<CacheItem, ResponseCallback> subscribe)
         {
             CacheItem ci;
             lock (cacheLock)
@@ -118,21 +118,30 @@ namespace ResgateIO.Client
                 }
                 if (ci.AddSubscription(true))
                 {
-                    Task.Run(async () =>
+                    subscribe(ci, (result, err) =>
                     {
-                        JToken result = null;
-                        try
+                        if (err == null)
                         {
-                            result = await subscribe(ci);
+                            try
+                            {
+                                AddResources(result.Result);
+                            }
+                            catch (ResException ex)
+                            {
+                                err = ex.Error;
+                            }
+                            catch (Exception ex)
+                            {
+                                err = new ResError(ex.Message);
+                            }
                         }
-                        catch (Exception ex)
+
+                        if (err != null)
                         {
                             ci.RemoveSubscription(false);
                             TryDelete(ci);
-                            ci.TrySetException(ex);
+                            ci.TrySetException(new ResException(err));
                         }
-
-                        AddResources(result);
                     });
                 }
             }
@@ -140,31 +149,61 @@ namespace ResgateIO.Client
             return ci;
         }
 
-        public async Task Unsubscribe(string rid, Func<string, Task> unsubscribe)
+        public async Task Unsubscribe(string rid, Action<string, ResponseCallback> unsubscribe)
         {
+            var tcs = new TaskCompletionSource<object>();
+            
             CacheItem ci;
             lock (cacheLock)
             {
                 if (!cache.TryGetValue(rid, out ci))
                 {
-                    throw new InvalidOperationException(String.Format("Resource not found in cache: {0}", rid));
+                    tcs.SetException(new InvalidOperationException(String.Format("Resource not found in cache: {0}", rid)));
+                    return;
                 }
                 if (ci.Subscriptions == 0)
                 {
-                    throw new InvalidOperationException(String.Format("Resource not directly subscribed: {0}", rid));
+                    tcs.SetException(new InvalidOperationException(String.Format("Resource not directly subscribed: {0}", rid)));
+                    return;
                 }
                 if (ci.VirtualSubscriptions > 0)
                 {
                     ci.RemoveSubscription(true);
+                    tcs.SetResult(null);
                     return;
                 }
             }
 
-            await unsubscribe(ci.ResourceID);
+            unsubscribe(ci.ResourceID, (result, err) =>
+            {
+                if (err == null)
+                {
+                    try
+                    {
+                        // Try delete the unsubscribed resource.
+                        ci.RemoveSubscription(false);
+                        TryDelete(ci);
+                        tcs.SetResult(null);
+                        return;
+                    }
+                    catch (ResException ex)
+                    {
+                        tcs.SetException(ex);
+                        return;
+                    }
+                    catch (Exception ex)
+                    {
+                        err = new ResError(ex.Message);
+                    }
+                }
 
-            // Try delete the unsubscribed resource.
-            ci.RemoveSubscription(false);
-            TryDelete(ci);
+                if (err != null)
+                {
+                    tcs.SetException(new ResException(err));
+                }
+            });
+
+            await tcs.Task;
         }
 
         //public CacheItem GetOrSubscribe(string rid, Action<CacheItem> subscribe)
@@ -210,7 +249,7 @@ namespace ResgateIO.Client
             }
         }
 
-        public void SubscribeStale(Func<CacheItem, Task<JToken>> subscribe)
+        public void SubscribeStale(Action<CacheItem, ResponseCallback> subscribe)
         {
             lock (cacheLock)
             {
@@ -219,28 +258,34 @@ namespace ResgateIO.Client
                     var ci = pair.Value;
                     if (ci.TrySubscribeStale())
                     {
-                        Task.Run(async () =>
+                        subscribe(ci, (result, err) =>
                         {
-                            JToken result = null;
-                            try
+                            if (err == null)
                             {
-                                result = await subscribe(ci);
-                                AddResources(result);
+                                try
+                                {
+                                    AddResources(result.Result);
+                                }
+                                catch (ResException ex)
+                                {
+                                    err = ex.Error;
+                                }
+                                catch (Exception ex)
+                                {
+                                    err = new ResError(ex.Message);
+                                }
                             }
-                            catch (Exception ex)
+
+                            if (err != null)
                             {
                                 ci.ClearSubscriptions();
                                 TryDelete(ci);
-
-                                ResException resException = ex as ResException;
 
                                 invokeEvent(ci, new ResourceUnsubscribeEventArgs
                                 {
                                     ResourceID = ci.ResourceID,
                                     EventName = "unsubscribe",
-                                    Reason = resException != null
-                                        ? resException.Error
-                                        : new ResError(ex.Message),
+                                    Reason = err,
                                 });
                             }
                         });

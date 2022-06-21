@@ -4,10 +4,13 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace ResgateIO.Client
 {
+
+    internal delegate void ResponseCallback(RequestResult result, ResError err);
 
     internal class RpcRequest
     {
@@ -18,7 +21,7 @@ namespace ResgateIO.Client
         [JsonProperty(PropertyName = "params", NullValueHandling = NullValueHandling.Ignore)]
         public object Params;
         [JsonIgnore]
-        public TaskCompletionSource<RequestResult> Task;
+        public ResponseCallback Callback;
     }
 
     class RequestResult
@@ -86,14 +89,14 @@ namespace ResgateIO.Client
 
                 if (rpcmsg.Error != null)
                 {
-                    req.Task.SetException(new ResException(rpcmsg.Error));
+                    req.Callback(null, rpcmsg.Error);
                 }
                 else
                 {
-                    req.Task.SetResult(new RequestResult
+                    req.Callback(new RequestResult
                     {
                         Result = rpcmsg.Result
-                    });
+                    }, null);
                 }
             }
             catch (Exception ex)
@@ -129,9 +132,8 @@ namespace ResgateIO.Client
             }
         }
 
-        public async Task<RequestResult> Request(string method, object parameters)
+        public void Request(string method, object parameters, ResponseCallback callback)
         {
-            var task = new TaskCompletionSource<RequestResult>();
             RpcRequest req;
             lock (requestLock)
             {
@@ -140,7 +142,7 @@ namespace ResgateIO.Client
                     Id = this.requestId++,
                     Method = method,
                     Params = parameters,
-                    Task = task
+                    Callback = callback,
                 };
 
                 this.requests.Add(req.Id, req);
@@ -148,17 +150,23 @@ namespace ResgateIO.Client
 
             var dta = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(req, serializerSettings));
 
-            try
+            Task.Run(async () =>
             {
-                await this.ws.SendAsync(dta);
-            }
-            catch (Exception e)
-            {
-                consumeRequest(req.Id);
-                throw e;
-            }
-
-            return await task.Task;
+                try
+                {
+                    await this.ws.SendAsync(dta);
+                }
+                catch (ResException e)
+                {
+                    consumeRequest(req.Id);
+                    callback(null, e.Error);
+                }
+                catch (Exception e)
+                {
+                    consumeRequest(req.Id);
+                    callback(null, new ResError(e.Message));
+                }
+            });
         }
 
         private RpcRequest consumeRequest(int id)

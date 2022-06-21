@@ -146,37 +146,7 @@ namespace ResgateIO.Client
 
             try
             {
-                protocol = 0;
-                // RES protocol version handshake
-                try
-                {
-                    var result = await rpc.Request("version", new VersionRequestDto(ProtocolVersion));
-                    if (result.Result != null)
-                    {
-                        var versionResponse = result.Result.ToObject<VersionResponseDto>();
-                        protocol = versionToInt(versionResponse.Protocol);
-                        ResgateProtocol = versionResponse.Protocol;
-                    }
-                }
-                catch (ResException ex)
-                {
-                    // An invalid request error means legacy behavior
-                    if (ex.Code != ResError.CodeInvalidRequest)
-                    {
-                        throw ex;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    throw ex;
-                }
-
-                // Set legacy protocol.
-                if (protocol == 0)
-                {
-                    protocol = versionToInt(legacyProtocol);
-                    ResgateProtocol = legacyProtocol;
-                }
+                await handshakeAsync();               
 
                 if (onConnectCallback != null)
                 {
@@ -356,8 +326,25 @@ namespace ResgateIO.Client
         // _call
         private async Task<object> requestAsync(string type, string rid, string method, object parameters)
         {
-            RequestResult result = await sendAsync(type, rid, method, parameters);
+            TaskCompletionSource<object> tcs = new TaskCompletionSource<object>();
 
+            send(type, rid, method, parameters, (result, err) =>
+            {
+                if (err != null)
+                {
+                    tcs.SetException(new ResException(err));
+                }
+                else
+                {
+                    tcs.SetResult(handleRequestResult(result));
+                }
+            });
+
+            return await tcs.Task;
+        }
+
+        private object handleRequestResult(RequestResult result)
+        { 
             if (protocol <= legacyProtocolVersion)
             {
                 return result.Result;
@@ -371,7 +358,7 @@ namespace ResgateIO.Client
             JObject r = result.Result as JObject;
             if (r == null)
             {
-                return null;
+                return null;;
             }
 
             // Check if the result is a resource response
@@ -407,27 +394,97 @@ namespace ResgateIO.Client
         }
 
         // _subscribe
-        private async Task<JToken> subscribe(CacheItem ci)
+        private void subscribe(CacheItem ci, ResponseCallback callback)
         {
-            RequestResult result = await sendAsync("subscribe", ci.ResourceID, null, null);
-            return result.Result;
+            send("subscribe", ci.ResourceID, null, null, callback);
         }
 
-        private async Task unsubscribe(string rid)
+        private async Task handshakeAsync()
         {
-            await sendAsync("subscribe", rid, null, null);
+            TaskCompletionSource<object> tcs = new TaskCompletionSource<object>();
+
+
+            rpc.Request("version", new VersionRequestDto(ProtocolVersion), (result, err) =>
+            {
+                if (err != null && err.Code != ResError.CodeInvalidRequest)
+                {
+                    tcs.SetException(new ResException(err));
+                    return;
+                }
+
+                try
+                {
+
+                    protocol = 0;
+                    if (result.Result != null)
+                    {
+                        var versionResponse = result.Result.ToObject<VersionResponseDto>();
+                        protocol = versionToInt(versionResponse.Protocol);
+                        ResgateProtocol = versionResponse.Protocol;
+                    }
+
+                    // Set legacy protocol.
+                    if (protocol == 0)
+                    {
+                        protocol = versionToInt(legacyProtocol);
+                        ResgateProtocol = legacyProtocol;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    tcs.SetException(new ResException(ex.Message, ex));
+                    return;
+                }
+
+                tcs.SetResult(null);
+            });
+
+            await tcs.Task;
+        }
+
+        private void unsubscribe(string rid, ResponseCallback callback)
+        {
+            send("unsubscribe", rid, null, null, callback);
         }
 
         // _send
-        private async Task<RequestResult> sendAsync(string action, string rid, string method, object parameters)
+        private void send(string action, string rid, string method, object parameters, ResponseCallback callback)
         {
-            string m = String.IsNullOrEmpty(method)
-                ? action + "." + rid
-                : action + "." + rid + "." + method;
+            Task.Run(async () =>
+            {
+                string m = String.IsNullOrEmpty(method)
+                    ? action + "." + rid
+                    : action + "." + rid + "." + method;
 
-            await ConnectAsync();
-            return await rpc.Request(m, parameters);
+                try
+                {
+                    await ConnectAsync();
+                }
+                catch (ResException e)
+                {
+                    callback(null, e.Error);
+                    return;
+                }
+                catch (Exception e)
+                {
+                    callback(null, new ResError(e.Message));
+                    return;
+                }
+                rpc.Request(m, parameters, callback);
+            });
         }
+
+        //// _send
+        //private async Task<RequestResult> sendAsync(string action, string rid, string method, object parameters)
+        //{
+        //    string m = String.IsNullOrEmpty(method)
+        //        ? action + "." + rid
+        //        : action + "." + rid + "." + method;
+        //    Console.WriteLine(String.Format("ConnectAsync for {0}.{1}", rid, method));
+        //    await ConnectAsync();
+        //    Console.WriteLine(String.Format("rpc.Request for {0}.{1}", rid, method));
+        //    return await rpc.Request(m, parameters);
+        //}
 
         // _subscribeToAllStale
         private void subscribeToAllStale()

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text;
 using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
@@ -26,6 +27,8 @@ namespace ResgateIO.Client.UnitTests
             Output = output;
             Client = new ResClient(createWebSocket);
             Client.Error += onError;
+            var converter = new Converter(output);
+            Console.SetOut(converter);
         }
 
         private void onError(object sender, ErrorEventArgs e)
@@ -115,6 +118,32 @@ namespace ResgateIO.Client.UnitTests
             WebSocket?.Dispose();
             // Final assertion
             Assert.Empty(Errors);
+        }
+    }
+
+    class Converter : TextWriter
+    {
+        ITestOutputHelper _output;
+        public Converter(ITestOutputHelper output)
+        {
+            _output = output;
+        }
+        public override Encoding Encoding
+        {
+            get { return Encoding.UTF8; }
+        }
+        public override void WriteLine(string message)
+        {
+            _output.WriteLine(message);
+        }
+        public override void WriteLine(string format, params object[] args)
+        {
+            _output.WriteLine(format, args);
+        }
+
+        public override void Write(char value)
+        {
+            throw new NotSupportedException("This text writer only supports WriteLine(string) and WriteLine(string, params object[]).");
         }
     }
 }
