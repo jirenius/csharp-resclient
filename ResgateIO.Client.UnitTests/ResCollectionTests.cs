@@ -236,6 +236,8 @@ namespace ResgateIO.Client.UnitTests
 
         public static IEnumerable<object[]> Synchronize_WithPrimitiveCollection_EmitsExpectedEvents_Data => new List<object[]>
         {
+            // No change
+            new object[] { new JArray { "A", "B" }, new JArray { "A", "B" }, 0},
             // Add single value
             new object[] { new JArray { "A", "B" }, new JArray { "C", "A", "B" }, 1},
             new object[] { new JArray { "A", "B" }, new JArray { "A", "C", "B" }, 1},
@@ -244,6 +246,10 @@ namespace ResgateIO.Client.UnitTests
             new object[] { new JArray { "A", "B", "C" }, new JArray { "B", "C" }, 1},
             new object[] { new JArray { "A", "B", "C" }, new JArray { "A", "C" }, 1},
             new object[] { new JArray { "A", "B", "C" }, new JArray { "A", "B" }, 1},
+            // Replace value
+            new object[] { new JArray { "A", "B", "C" }, new JArray { "D", "B", "C" }, 2},
+            new object[] { new JArray { "A", "B", "C" }, new JArray { "A", "D", "C" }, 2},
+            new object[] { new JArray { "A", "B", "C" }, new JArray { "A", "B", "D" }, 2},
         };
 
         [Theory, MemberData(nameof(Synchronize_WithPrimitiveCollection_EmitsExpectedEvents_Data))]
@@ -333,7 +339,7 @@ namespace ResgateIO.Client.UnitTests
         }
 
         [Fact]
-        public async Task Synchronize_WithPrimitiveCollectionlUnchanged_EmitsNoEvents()
+        public async Task Synchronize_WithPrimitiveCollectionUnchanged_EmitsNoEvents()
         {
             await ConnectAndHandshake();
 
