@@ -294,6 +294,7 @@ namespace ResgateIO.Client
                 n = j - 1;
                 if (i > 0 && j > 0 && Object.Equals(aa[m], bb[n]))
                 {
+                    idx--;
                     i--;
                     j--;
                 }

@@ -250,6 +250,11 @@ namespace ResgateIO.Client.UnitTests
             new object[] { new JArray { "A", "B", "C" }, new JArray { "D", "B", "C" }, 2},
             new object[] { new JArray { "A", "B", "C" }, new JArray { "A", "D", "C" }, 2},
             new object[] { new JArray { "A", "B", "C" }, new JArray { "A", "B", "D" }, 2},
+            // Move value
+            new object[] { new JArray { "A", "B", "C" }, new JArray { "B", "A", "C" }, 2},
+            new object[] { new JArray { "A", "B", "C" }, new JArray { "B", "C", "A" }, 2},
+            new object[] { new JArray { "A", "B", "C" }, new JArray { "A", "C", "B" }, 2},
+            new object[] { new JArray { "A", "B", "C" }, new JArray { "C", "A", "B" }, 2},
         };
 
         [Theory, MemberData(nameof(Synchronize_WithPrimitiveCollection_EmitsExpectedEvents_Data))]
