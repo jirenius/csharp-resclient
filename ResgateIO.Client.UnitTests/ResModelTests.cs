@@ -265,8 +265,7 @@ namespace ResgateIO.Client.UnitTests
             var model = await creqTask as ResModel;
 
             // Disconnect and reconnect
-            await WebSocket.DisconnectAsync();
-            await ConnectAndHandshake();
+            await DisconnectAndAwaitReconnectAndHandshake();
 
             // Expect resynchronization get request and generated change event
             var completionSource = new TaskCompletionSource<ResourceEventArgs>();
@@ -313,8 +312,7 @@ namespace ResgateIO.Client.UnitTests
             var model = await creqTask as ResModel;
 
             // Disconnect and reconnect
-            await WebSocket.DisconnectAsync();
-            await ConnectAndHandshake();
+            await DisconnectAndAwaitReconnectAndHandshake();
 
             // Expect resynchronization get request
             var completionSource = new TaskCompletionSource<ResourceEventArgs>();

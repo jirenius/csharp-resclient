@@ -285,5 +285,110 @@ namespace ResgateIO.Client.UnitTests
             var ex = await Assert.ThrowsAsync<ResException>(async () => await creqTask);
             Assert.Equal(ResError.CodeConnectionError, ex.Code);
         }
+
+        [Fact]
+        public async Task ConnectAsync_DisconnectedtWithStale_Reconnects()
+        {
+            await ConnectAndHandshake();
+
+            var creqTask = Client.SubscribeAsync("test.model");
+            var req = await WebSocket.GetRequestAsync();
+            req.AssertMethod("subscribe.test.model");
+            req.SendResult(new JObject
+            {
+                { "models", new JObject
+                    {
+                        { "test.model", Test.Model }
+                    }
+                }
+            });
+            var model = await creqTask as ResModel;
+
+            // Disconnect and reconnect
+            await DisconnectAndAwaitReconnectAndHandshake();
+
+            // Expect resynchronization get request
+            var completionSource = new TaskCompletionSource<ResourceEventArgs>();
+            EventHandler<ResourceEventArgs> h = (object sender, ResourceEventArgs e) => completionSource.SetResult(e);
+            model.ResourceEvent += h;
+            var req2 = await WebSocket.GetRequestAsync();
+            req2.AssertMethod("subscribe.test.model");
+            // Send identical model
+            req2.SendResult(new JObject
+            {
+                { "models", new JObject
+                    {
+                        { "test.model", Test.Model }
+                    }
+                }
+            });
+
+            // Send custom event
+            byte[] eventMsg = System.Text.Encoding.UTF8.GetBytes("{\"event\":\"test.model.custom\",\"data\":null}");
+            WebSocket.SendMessage(eventMsg);
+            var ev = await completionSource.Task;
+
+            model.ResourceEvent -= h;
+
+            // Verify we got the custom event and not a change event.
+            Assert.Equal("custom", ev.EventName);
+        }
+
+
+
+        [Fact]
+        public async Task ConnectAsync_DisconnectedtWithStaleAndRetry_Reconnects()
+        {
+            Client.SetReconnectDelay(1); // 1 ms in reconnect delay
+            await ConnectAndHandshake();
+
+            var creqTask = Client.SubscribeAsync("test.model");
+            var req = await WebSocket.GetRequestAsync();
+            req.AssertMethod("subscribe.test.model");
+            req.SendResult(new JObject
+            {
+                { "models", new JObject
+                    {
+                        { "test.model", Test.Model }
+                    }
+                }
+            });
+            var model = await creqTask as ResModel;
+
+            // Disconnect and reconnect
+            var ex = new Exception("reconnect failed");
+            SetNextConnectException(ex);
+            await DisconnectAndAwaitReconnectAndHandshake();
+
+            // Validate we got one exception
+            var errEv = await NextError();
+            Assert.Equal(ex, errEv.GetException());
+
+            // Expect resynchronization get request
+            var completionSource = new TaskCompletionSource<ResourceEventArgs>();
+            EventHandler<ResourceEventArgs> h = (object sender, ResourceEventArgs e) => completionSource.SetResult(e);
+            model.ResourceEvent += h;
+            var req2 = await WebSocket.GetRequestAsync();
+            req2.AssertMethod("subscribe.test.model");
+            // Send identical model
+            req2.SendResult(new JObject
+            {
+                { "models", new JObject
+                    {
+                        { "test.model", Test.Model }
+                    }
+                }
+            });
+
+            // Send custom event
+            byte[] eventMsg = System.Text.Encoding.UTF8.GetBytes("{\"event\":\"test.model.custom\",\"data\":null}");
+            WebSocket.SendMessage(eventMsg);
+            var ev = await completionSource.Task;
+
+            model.ResourceEvent -= h;
+
+            // Verify we got the custom event and not a change event.
+            Assert.Equal("custom", ev.EventName);
+        }
     }
 }

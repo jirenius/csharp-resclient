@@ -18,6 +18,9 @@ namespace ResgateIO.Client.UnitTests
         private readonly Queue<ErrorEventArgs> Errors = new Queue<ErrorEventArgs>();
         private readonly Queue<TaskCompletionSource<ErrorEventArgs>> nextErrorTasks = new Queue<TaskCompletionSource<ErrorEventArgs>>();
         public readonly object errorsLock = new object();
+        private TaskCompletionSource<object> connectedTcs;
+        private readonly object connectedTcsLock = new object();
+        private Exception nextConnectException;
 
         public MockWebSocket WebSocket { get; private set; }
         public MockResgate Resgate { get; private set; }
@@ -29,6 +32,11 @@ namespace ResgateIO.Client.UnitTests
             Client.Error += onError;
             var converter = new Converter(output);
             Console.SetOut(converter);
+        }
+
+        public void SetNextConnectException(Exception ex)
+        {
+            nextConnectException = ex;
         }
 
         private void onError(object sender, ErrorEventArgs e)
@@ -45,17 +53,57 @@ namespace ResgateIO.Client.UnitTests
         public async Task ConnectAndHandshake(string protocol = "1.2.2")
         { 
             var connectTask = Client.ConnectAsync();
-            await Resgate.HandshakeAsync(protocol);
+            await Handshake(protocol);
             await connectTask;
 
             Assert.Equal(protocol, Client.ResgateProtocol);
         }
 
+        public async Task DisconnectAndAwaitReconnectAndHandshake(string protocol = "1.2.2")
+        {
+            var connectedTask = Connected();
+            await WebSocket.DisconnectAsync();
+            await connectedTask;
+            await Handshake();
+
+        }
+
+        public async Task Handshake(string protocol = "1.2.2")
+        {
+            await Resgate.HandshakeAsync(protocol);
+        }
+
+        public Task Connected() 
+        {
+            lock (connectedTcsLock)
+            {
+                if (connectedTcs == null)
+                {
+                    connectedTcs = new TaskCompletionSource<object>();
+                }
+                return connectedTcs.Task;
+            }
+        }
+
         private Task<IWebSocket> createWebSocket()
         {
-            WebSocket = new MockWebSocket(Output);
-            Resgate = new MockResgate(WebSocket);
-            return Task.FromResult<IWebSocket>(WebSocket);
+            if (nextConnectException != null)
+            {
+                var ex = nextConnectException;
+                nextConnectException = null;
+                throw ex;
+            }
+
+            lock (connectedTcsLock)
+            {
+                WebSocket = new MockWebSocket(Output);
+                Resgate = new MockResgate(WebSocket);
+                if (connectedTcs != null)
+                {
+                    connectedTcs.SetResult(null);
+                }
+                return Task.FromResult<IWebSocket>(WebSocket);
+            }
         }
 
         private bool tryCompleteNextError()

@@ -37,6 +37,7 @@ namespace ResgateIO.Client
         private Task connectTask;
         private int protocol;
         private bool online;
+        private bool tryReconnect;
         private bool disposedValue;
         //private Dictionary<string, CacheItem> itemCache = new Dictionary<string, CacheItem>();
 
@@ -150,8 +151,11 @@ namespace ResgateIO.Client
         public async Task ConnectAsync()
         {
             Task task;
+            bool calledConnect = false;
             lock (connectLock)
             {
+                this.tryReconnect = true;
+
                 if (this.reconnectTokenSource != null)
                 {
                     this.reconnectTokenSource.Cancel();
@@ -159,17 +163,30 @@ namespace ResgateIO.Client
                 }
                 if (connectTask == null)
                 {
+                    calledConnect = true;
                     connectTask = connectAsync();
                 }
                 task = connectTask;
             }
 
-            await task;
+            try
+            {
+                await task;
+            }
+            catch (Exception ex)
+            {
+                if (calledConnect)
+                {
+                    connectTask = null;
+                }
+                throw ex;
+            }
         }
 
         private async Task connectAsync()
         {
             var ws = await wsFactory();
+
             ws.OnClose += onClose;
 
             rpc = new ResRpc(ws, serializerSettings);
@@ -202,6 +219,16 @@ namespace ResgateIO.Client
         /// <returns>Task that completes once disconnected.</returns>
         public async Task DisconnectAsync()
         {
+            lock (connectLock)
+            {
+                tryReconnect = false;
+                if (this.reconnectTokenSource != null)
+                {
+                    this.reconnectTokenSource.Cancel();
+                    this.reconnectTokenSource = null;
+                }
+            }
+
             if (rpc == null)
             {
                 return;
@@ -217,12 +244,6 @@ namespace ResgateIO.Client
                 lock (connectLock)
                 {
                     online = false;
-
-                    if (this.reconnectTokenSource != null)
-                    {
-                        this.reconnectTokenSource.Cancel();
-                        this.reconnectTokenSource = null;
-                    }
                 }
             }
         }
@@ -240,20 +261,27 @@ namespace ResgateIO.Client
 
             lock (connectLock)
             {
-                if (online && hasStale)
+                var wasOnline = online;
+                online = false;
+
+                tryReconnect = hasStale && tryReconnect;
+                if (tryReconnect)
                 {
-                    // Start timer
-                }
-                else
-                {
-                    online = false;
+                    if (wasOnline)
+                    {
+                        Task.Run(reconnect);
+                    }
+                    else
+                    {
+                        startReconnectTimer();
+                    }
                 }
             }
         }
 
         private void startReconnectTimer()
         {
-            if (!online)
+            if (!tryReconnect)
             {
                 return;
             }
@@ -265,22 +293,24 @@ namespace ResgateIO.Client
             }
 
             this.reconnectTokenSource = new CancellationTokenSource();
-            Task.Delay(reconnectDelay, this.reconnectTokenSource.Token).ContinueWith(async _ =>
-            {
-                try
-                {
-                    await ConnectAsync();
-                }
-                catch (Exception ex)
-                {
-                    onError(this, new ErrorEventArgs(ex));
-                    lock (connectLock)
-                    {
-                        startReconnectTimer();
-                    }
-                }
-            });
+            Task.Delay(reconnectDelay, this.reconnectTokenSource.Token).ContinueWith(async _ => await reconnect());
            
+        }
+
+        private async Task reconnect()
+        {
+            try
+            {
+                await ConnectAsync();
+            }
+            catch (Exception ex)
+            {
+                onError(this, new ErrorEventArgs(ex));
+                lock (connectLock)
+                {
+                    startReconnectTimer();
+                }
+            }
         }
 
         ///// <summary>
@@ -558,18 +588,6 @@ namespace ResgateIO.Client
                 rpc.Request(m, parameters, callback);
             });
         }
-
-        //// _send
-        //private async Task<RequestResult> sendAsync(string action, string rid, string method, object parameters)
-        //{
-        //    string m = String.IsNullOrEmpty(method)
-        //        ? action + "." + rid
-        //        : action + "." + rid + "." + method;
-        //    Console.WriteLine(String.Format("ConnectAsync for {0}.{1}", rid, method));
-        //    await ConnectAsync();
-        //    Console.WriteLine(String.Format("rpc.Request for {0}.{1}", rid, method));
-        //    return await rpc.Request(m, parameters);
-        //}
 
         // _subscribeToAllStale
         private void subscribeToAllStale()
