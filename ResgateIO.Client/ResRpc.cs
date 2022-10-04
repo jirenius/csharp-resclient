@@ -137,6 +137,12 @@ namespace ResgateIO.Client
             RpcRequest req;
             lock (requestLock)
             {
+                if (this.requests == null)
+                {
+                    Task.Run(() => callback(null, new ResError(ResError.CodeConnectionError, "Connection closed")));
+                    return;
+                }
+
                 req = new RpcRequest
                 {
                     Id = this.requestId++,
@@ -144,7 +150,6 @@ namespace ResgateIO.Client
                     Params = parameters,
                     Callback = callback,
                 };
-
                 this.requests.Add(req.Id, req);
             }
 
@@ -173,8 +178,14 @@ namespace ResgateIO.Client
         {
             lock (requestLock)
             {
+                if (this.requests == null)
+                {
+                    throw new InvalidOperationException(String.Format("Incoming request disposed: {0}", id));
+                }
+
                 if (this.requests.TryGetValue(id, out RpcRequest req))
                 {
+                    this.requests.Remove(id);
                     return req;
                 }
             }
@@ -188,6 +199,18 @@ namespace ResgateIO.Client
             {
                 if (disposing)
                 {
+                    // Call all pending requests with a connection closed error.
+                    Dictionary<int, RpcRequest> pendingRequests;
+                    lock (requestLock)
+                    {
+                        pendingRequests = this.requests;
+                        this.requests = null;
+                    }
+                    foreach (var req in pendingRequests)
+                    {
+                        Task.Run(() => req.Value.Callback(null, new ResError(ResError.CodeConnectionError, "Connection closed")));
+                    }
+
                     ws.Dispose();
                 }
                 disposedValue = true;

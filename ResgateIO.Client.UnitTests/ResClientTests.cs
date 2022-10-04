@@ -271,5 +271,19 @@ namespace ResgateIO.Client.UnitTests
             Assert.IsType<ResModel>(model);
             Test.AssertEqualJSON(Test.Model, model);
         }
+
+        [Fact]
+        public async Task CallAsync_DisconnectBeforeResponse_ThrowsConnectionError()
+        {
+            await ConnectAndHandshake();
+
+            var creqTask = Client.CallAsync("test.model", "method");
+            var req = await WebSocket.GetRequestAsync();
+            req.AssertMethod("call.test.model.method");
+            await Client.DisconnectAsync();
+
+            var ex = await Assert.ThrowsAsync<ResException>(async () => await creqTask);
+            Assert.Equal(ResError.CodeConnectionError, ex.Code);
+        }
     }
 }

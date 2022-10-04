@@ -18,6 +18,7 @@ namespace ResgateIO.Client
         public const string CodeNotFound = "system.notFound";
         public const string CodeTimeout = "system.timeout";
         public const string CodeInvalidRequest = "system.invalidRequest";
+        public const string CodeConnectionError = "system.connectionError";
 
         [JsonProperty(PropertyName = "code")]
         public string Code;
