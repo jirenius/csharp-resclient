@@ -14,22 +14,22 @@ namespace ResgateIO.Client.UnitTests
         [Fact(Skip = "example code")]
         public async Task ExampleAsync_GettingDefaultResources()
         {
-            // Creating a client using a hostUrl string
+            // Creating a client using a hostUrl string.
             var client = new ResClient("ws://127.0.0.1:8080");
 
-            // Subscribing to a model of the default type ResModel
+            // Subscribing to a model of the default type ResModel.
             var model = await client.SubscribeAsync("example.model") as ResModel;
 
-            // Accessing a model value by property
+            // Accessing a model value by property.
             Console.WriteLine("Model property foo: {0}", model["foo"]);
 
             // Unsubscribing to a model (same as collection).
             await client.UnsubscribeAsync("example.model");
 
-            // Getting a collection of the default type ResCollection
+            // Getting a collection of the default type ResCollection.
             var collection = await client.SubscribeAsync("example.collection") as ResCollection;
 
-            // Accessing a collection value by index
+            // Accessing a collection value by index.
             Console.WriteLine("Collection value at index 0: {0}", collection[0]);
 
             // Unsubscribing to a collection (same as model).
@@ -92,17 +92,17 @@ namespace ResgateIO.Client.UnitTests
         [Fact(Skip = "example code")]
         public async Task ExampleAsync_GettingCustomDefinedResources()
         {
-            // Creating a client using a hostUrl string
+            // Creating a client using a hostUrl string.
             var client = new ResClient("ws://127.0.0.1:8080");
 
-            // Registering mail model and collection factories
+            // Registering mail model and collection factories.
             client.RegisterModelFactory("example.mail.*", (client, rid) => new Mail(client, rid));
             client.RegisterCollectionFactory("example.mails", (client, rid) => new ResCollection<Mail>(client, rid));
 
             // Getting a collection of registered types.
             var mails = await client.SubscribeAsync("example.mails") as ResCollection<Mail>;
 
-            // Iterate over all mails
+            // Iterate over all mails.
             foreach (Mail mail in mails)
             {
                 Console.WriteLine("Mail: {0} {1}", mail.Subject, mail.Body);
@@ -117,34 +117,31 @@ namespace ResgateIO.Client.UnitTests
             var client = new ResClient("ws://127.0.0.1:8080");
 
             // Listening for any resource event
-            client.ResourceEvent += client_ResourceEvent;
+            client.ResourceEvent += (sender, e) =>
+            {
+                Console.WriteLine("Event for resource {0}: {1}", e.ResourceID, e.EventName);
+            };
 
             // Getting a model of the default type ResModel
             var model = await client.SubscribeAsync("example.model") as ResModel;
 
             // Listening for model change
-            model.ResourceEvent += model_ResourceEvent;
+            EventHandler<ResourceEventArgs> handler = (sender, e) =>
+            {
+                switch (e)
+                {
+                    case ModelChangeEventArgs changeEvent:
+                        Console.WriteLine("Model change event");
+                        break;
+                    default:
+                        Console.WriteLine("Custom event: ", e.EventName);
+                        break;
+                }
+            };
+            model.ResourceEvent += handler;
             await Task.Delay(1000);
             // Stop listening for model change
-            model.ResourceEvent -= model_ResourceEvent;
-        }
-
-        private void model_ResourceEvent(object sender, ResourceEventArgs e)
-        {
-            switch (e)
-            {
-                case ModelChangeEventArgs changeEvent:
-                    Console.WriteLine("Model change event");
-                    break;
-                default:
-                    Console.WriteLine("Custom event: ", e.EventName);
-                    break;
-            }
-        }
-
-        private void client_ResourceEvent(object sender, ResourceEventArgs e)
-        {
-            Console.WriteLine("Event for resource {0}: {1}", e.ResourceID, e.EventName);
+            model.ResourceEvent -= handler;
         }
 
         [Fact(Skip = "example code")]
@@ -158,7 +155,7 @@ namespace ResgateIO.Client.UnitTests
 
             // Calling a method assuming it returns a mail model in a resource response.
             var mail = await client.CallAsync("example.mails", "getLastMail") as Mail;
-            var totalMails = await client.CallAsync<int>("example.mails", "getTotalMails");            
+            var totalMails = await client.CallAsync<int>("example.mails", "getTotalMails");
 
             // Call model method
             await mail.ReplyAsync("This is my reply");

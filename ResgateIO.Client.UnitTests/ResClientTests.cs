@@ -334,8 +334,6 @@ namespace ResgateIO.Client.UnitTests
             Assert.Equal("custom", ev.EventName);
         }
 
-
-
         [Fact]
         public async Task ConnectAsync_DisconnectedtWithStaleAndRetry_Reconnects()
         {
