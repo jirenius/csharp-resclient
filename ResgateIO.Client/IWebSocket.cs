@@ -6,6 +6,11 @@ using System.Threading.Tasks;
 
 namespace ResgateIO.Client
 {
+    public class MessageEventArgs : EventArgs
+    {
+        public byte[] Message { get; set; }
+    }
+
     public interface IWebSocket : IDisposable
     {
         event EventHandler<MessageEventArgs> OnMessage;
@@ -16,8 +21,3 @@ namespace ResgateIO.Client
     }
 }
 
-
-public class MessageEventArgs : EventArgs
-{
-    public byte[] Message { get; set; }
-}
