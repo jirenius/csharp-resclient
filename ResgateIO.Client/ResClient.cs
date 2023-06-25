@@ -1,9 +1,9 @@
-﻿using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
-using System;
+﻿using System;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace ResgateIO.Client
 {
@@ -27,13 +27,13 @@ namespace ResgateIO.Client
 
         // Fields
         private ResRpc rpc;
-        private string hostUrl;
+        private readonly string hostUrl;
         private readonly Func<Task<IWebSocket>> wsFactory;
         private JsonSerializerSettings serializerSettings;
         private Func<ResClient, Task> onConnectCallback;
         private int reconnectDelay = 3000;
         private CancellationTokenSource reconnectTokenSource;
-        private object connectLock = new object();
+        private readonly object connectLock = new object();
         private Task connectTask;
         private int protocol;
         private bool online;
@@ -48,7 +48,7 @@ namespace ResgateIO.Client
 
         // Private constants
         private const string legacyProtocol = "1.1.1";
-        private static int legacyProtocolVersion = versionToInt(legacyProtocol);
+        private static readonly int legacyProtocolVersion = versionToInt(legacyProtocol);
 
         public ResClient(string hostUrl)
         {
@@ -195,7 +195,7 @@ namespace ResgateIO.Client
 
             try
             {
-                await handshakeAsync();               
+                await handshakeAsync();
 
                 if (onConnectCallback != null)
                 {
@@ -294,7 +294,7 @@ namespace ResgateIO.Client
 
             this.reconnectTokenSource = new CancellationTokenSource();
             Task.Delay(reconnectDelay, this.reconnectTokenSource.Token).ContinueWith(async _ => await reconnect());
-           
+
         }
 
         private async Task reconnect()
@@ -441,7 +441,7 @@ namespace ResgateIO.Client
         // _call
         private async Task<object> requestAsync(string type, string rid, string method, object parameters)
         {
-            TaskCompletionSource<object> tcs = new TaskCompletionSource<object>();
+            TaskCompletionSource<object> tcs = new TaskCompletionSource<object>(TaskCreationOptions.RunContinuationsAsynchronously);
 
             send(type, rid, method, parameters, (result, err) =>
             {
@@ -459,7 +459,7 @@ namespace ResgateIO.Client
         }
 
         private object handleRequestResult(RequestResult result)
-        { 
+        {
             if (protocol <= legacyProtocolVersion)
             {
                 return result.Result;
@@ -473,7 +473,7 @@ namespace ResgateIO.Client
             JObject r = result.Result as JObject;
             if (r == null)
             {
-                return null;;
+                return null; ;
             }
 
             // Check if the result is a resource response
@@ -516,7 +516,7 @@ namespace ResgateIO.Client
 
         private async Task handshakeAsync()
         {
-            TaskCompletionSource<object> tcs = new TaskCompletionSource<object>();
+            TaskCompletionSource<object> tcs = new TaskCompletionSource<object>(TaskCreationOptions.RunContinuationsAsynchronously);
 
 
             rpc.Request("version", new VersionRequestDto(ProtocolVersion), (result, err) =>
