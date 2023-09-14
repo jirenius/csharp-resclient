@@ -1,4 +1,4 @@
-﻿using Newtonsoft.Json;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
@@ -151,8 +151,8 @@ namespace ResgateIO.Client
 
         public async Task Unsubscribe(string rid, Action<string, ResponseCallback> unsubscribe)
         {
-            var tcs = new TaskCompletionSource<object>();
-            
+            var tcs = new TaskCompletionSource<object>(TaskCreationOptions.RunContinuationsAsynchronously);
+
             CacheItem ci;
             lock (cacheLock)
             {

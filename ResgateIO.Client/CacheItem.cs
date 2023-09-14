@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
@@ -20,7 +20,8 @@ namespace ResgateIO.Client
         // Internal resources
         public object InternalResource { get; private set; }
 
-        private TaskCompletionSource<ResResource> completionSource = new TaskCompletionSource<ResResource>();
+        private readonly TaskCompletionSource<ResResource> completionSource =
+            new TaskCompletionSource<ResResource>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         private readonly string rid;
         private readonly ItemCache cache;
