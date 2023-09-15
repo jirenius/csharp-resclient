@@ -86,6 +86,36 @@ namespace ResgateIO.Client.UnitTests
             Assert.Equal(42, model.Int);
         }
 
+        [Fact]
+        public async Task SubscribeAsync_WithReferenceToError_GetsModel()
+        {
+            await ConnectAndHandshake();
+
+            var creqTask = Client.SubscribeAsync("test.model");
+            var req = await WebSocket.GetRequestAsync();
+            req.AssertMethod("subscribe.test.model");
+            req.SendResult(new JObject
+            {
+                { "models", new JObject
+                    {
+                        { "test.model", new JObject { { "foo", new JObject { { "rid", "test.timeout" } } } } },
+                    }
+                },
+                { "errors", new JObject
+                    {
+                        { "test.timeout", Test.Resources["test.timeout"] },
+                    }
+                }
+            });
+            var result = await creqTask;
+            Assert.Equal("test.model", result.ResourceID);
+            Assert.IsType<ResModel>(result);
+
+            var model = result as ResModel;
+            Assert.IsType<ResResourceError>(model["foo"]);
+            Assert.Equal(ResError.CodeTimeout, (model["foo"] as ResResourceError).Error.Code);
+        }
+
         public static IEnumerable<object[]> ChangeEvent_UpdatesModel_Data => new List<object[]>
         {
             // Change single value

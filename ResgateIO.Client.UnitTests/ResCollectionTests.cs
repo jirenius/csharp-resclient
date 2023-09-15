@@ -96,6 +96,37 @@ namespace ResgateIO.Client.UnitTests
             Assert.Equal(42, model.Int);
         }
 
+        [Fact]
+        public async Task SubscribeAsync_WithReferenceToError_GetsCollection()
+        {
+            await ConnectAndHandshake();
+
+            var creqTask = Client.SubscribeAsync("test.collection");
+            var req = await WebSocket.GetRequestAsync();
+            req.AssertMethod("subscribe.test.collection");
+            req.SendResult(new JObject
+            {
+                { "collections", new JObject
+                    {
+                        { "test.collection", new JArray { new JObject { { "rid", "test.timeout" } } } },
+                    }
+                },
+                { "errors", new JObject
+                    {
+                        { "test.timeout", Test.Resources["test.timeout"] },
+                    }
+                }
+            });
+            var result = await creqTask;
+            Assert.Equal("test.collection", result.ResourceID);
+            Assert.IsType<ResCollection>(result);
+
+            var collection = result as ResCollection;
+            Assert.Single(collection);
+            Assert.IsType<ResResourceError>(collection[0]);
+            Assert.Equal(ResError.CodeTimeout, (collection[0] as ResResourceError).Error.Code);
+        }
+
         public static IEnumerable<object[]> AddEvent_PrimitiveValue_UpdatesCollection_Data => new List<object[]>
         {
             // Change single value

@@ -37,7 +37,6 @@ namespace ResgateIO.Client
         private static TraverseState TraverseContinue = new TraverseState(ReferenceState.None);
 
         private Dictionary<string, CacheItem> cache = new Dictionary<string, CacheItem>();
-        //private HashSet<string> stale = new HashSet<string>();
         private object cacheLock = new object();
         private IResourceType[] resourceTypes;
         public ResClient Client { get; private set; }
@@ -65,7 +64,8 @@ namespace ResgateIO.Client
             resourceTypes = new IResourceType[]
             {
                  new ResourceTypeModel(this),
-                 new ResourceTypeCollection(this)
+                 new ResourceTypeCollection(this),
+                 new ResourceTypeError(this),
             };
 
             foreach (var resourceType in resourceTypes)
@@ -206,23 +206,6 @@ namespace ResgateIO.Client
             await tcs.Task;
         }
 
-        //public CacheItem GetOrSubscribe(string rid, Action<CacheItem> subscribe)
-        //{
-        //    CacheItem ci;
-        //    lock (cacheLock)
-        //    {
-        //        if (!cache.TryGetValue(rid, out ci))
-        //        {
-        //            ci = new CacheItem(this, rid);
-        //            cache[rid] = ci;
-        //            ci.AddSubscription(1);
-        //            subscribe(ci);
-        //        }
-        //    }
-
-        //    return ci;
-        //}
-
         public CacheItem AddResourcesAndSubscribe(JToken result, string rid)
         {
             CacheItem ci;
@@ -313,9 +296,6 @@ namespace ResgateIO.Client
                     CacheItemReference r = pair.Value;
                     switch (r.State)
                     {
-                        //case ReferenceState.Stale:
-                        //    setStale(pair.Key);
-                        //    break;
                         case ReferenceState.Delete:
                             deleteRef(r.Item);
                             break;
@@ -346,18 +326,20 @@ namespace ResgateIO.Client
                 IResourceType typ = getResourceType(item.Type);
 
                 IEnumerable<object> values = typ.GetResourceValues(item.InternalResource);
-                foreach (object value in values)
+                if (values != null)
                 {
-                    CacheItem refItem = getRefItem(value);
-                    if (refItem != null)
+                    foreach (object value in values)
                     {
-                        refItem.AddReference(-1);
+                        CacheItem refItem = getRefItem(value);
+                        if (refItem != null)
+                        {
+                            refItem.AddReference(-1);
+                        }
                     }
                 }
             }
 
             cache.Remove(item.ResourceID);
-            //removeStale(item);
         }
 
         private CacheItem getRefItem(object value)
@@ -462,10 +444,6 @@ namespace ResgateIO.Client
                 {
                     return TraverseStop;
                 }
-                //else if (refState.Item.Listeners > 0)
-                //{
-                //    refState.State = ReferenceState.Stale;
-                //}
                 else
                 {
                     refState.State = ReferenceState.Delete;
@@ -503,14 +481,16 @@ namespace ResgateIO.Client
             {
                 IResourceType typ = getResourceType(ci.Type);
 
-
                 IEnumerable<object> values = typ.GetResourceValues(ci.InternalResource);
-                foreach (object value in values)
+                if (values != null)
                 {
-                    CacheItem refItem = getRefItem(value);
-                    if (refItem != null)
+                    foreach (object value in values)
                     {
-                        traverse(refItem, cb, state, false);
+                        CacheItem refItem = getRefItem(value);
+                        if (refItem != null)
+                        {
+                            traverse(refItem, cb, state, false);
+                        }
                     }
                 }
             }
@@ -699,11 +679,6 @@ namespace ResgateIO.Client
                     // If the resource is not cached since before, create a new cache item for it.
                     ci = new CacheItem(this, rid);
                     cache[rid] = ci;
-                }
-                else
-                {
-                    // If the resource was cached, it might have been stale.
-                    // removeStale(rid)
                 }
 
                 // If it is set since before, it is stale and needs to be updated
