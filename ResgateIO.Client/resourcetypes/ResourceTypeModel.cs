@@ -15,23 +15,27 @@ namespace ResgateIO.Client
 
         public string ResourceProperty { get { return "models"; } }
 
-        public readonly PatternMap<ModelFactory> Patterns;
+        public readonly PatternMap<ResourceFactory> Patterns;
 
         // Events
         public event ErrorEventHandler Error;
 
         private ItemCache cache;
 
-        public ResourceTypeModel(ItemCache cache)
+        public ResourceTypeModel(ItemCache cache, PatternMap<ResourceFactory> resourcePatterns)
         {
             this.cache = cache;
-            Patterns = new PatternMap<ModelFactory>(defaultModelFactory);
+            Patterns = resourcePatterns;
         }
 
         public ResResource CreateResource(string rid)
         {
-            ModelFactory f = Patterns.Get(rid);
-            return f(cache.Client, rid);
+            ModelFactory modelFactory = defaultModelFactory;
+            if (Patterns.TryGet(rid, out ResourceFactory factory) && factory.ModelFactory != null)
+            {
+                modelFactory = factory.ModelFactory;
+            }
+            return modelFactory(cache.Client, rid);
         }
 
         public ResourceEventArgs HandleEvent(object resource, ResourceEventArgs ev)

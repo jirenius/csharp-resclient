@@ -14,18 +14,34 @@ namespace ResgateIO.Client
 
         public string ResourceProperty { get { return "errors"; } }
 
+        public readonly PatternMap<ResourceFactory> Patterns;
+
         // Events
         public event ErrorEventHandler Error;
 
         private ItemCache cache;
 
-        public ResourceTypeError(ItemCache cache)
+        public ResourceTypeError(ItemCache cache, PatternMap<ResourceFactory> resourcePatterns)
         {
             this.cache = cache;
+            Patterns = resourcePatterns;
         }
 
         public ResResource CreateResource(string rid)
         {
+            // If a resource factory is registered for the pattern, we create
+            // an instance of that specific resource instead of a ResResourceError.
+            if (Patterns.TryGet(rid, out ResourceFactory factory))
+            {
+                if (factory.ModelFactory != null)
+                {
+                    return (ResResource)factory.ModelFactory(cache.Client, rid);
+                }
+                else if (factory.CollectionFactory != null)
+                {
+                    return (ResResource)factory.CollectionFactory(cache.Client, rid);
+                }
+            }
             return new ResResourceError(rid);
         }
 
@@ -36,12 +52,6 @@ namespace ResgateIO.Client
 
         public object InitResource(ResResource resource, JToken data)
         {
-            ResResourceError rerr = resource as ResResourceError;
-            if (rerr == null)
-            {
-                throw new InvalidOperationException("Resource not of type ResResourceError.");
-            }
-
             JObject obj = data as JObject;
             if (obj == null)
             {
@@ -58,7 +68,7 @@ namespace ResgateIO.Client
                 throw new InvalidOperationException("Error deserializing resource error.", ex);
             }
 
-            rerr.Init(err);
+            resource.Init(err);
 
             return null;
         }

@@ -12,32 +12,15 @@ namespace ResgateIO.Client
     /// </summary>
     public class ResResourceError : ResResource
     {
-        private ResError err = null;
-
         /// <summary>
         /// Resource type.
         /// </summary>
         public override ResourceType Type { get { return ResourceType.Error; } }
 
         /// <summary>
-        /// Resource error.
-        /// </summary>
-        public ResError Error { get { return err; } }
-
-        /// <summary>
         /// Initializes a new instance of the ResErrorResource class.
         /// </summary>
         public ResResourceError(string rid) : base(rid) { }
-
-        /// <summary>
-        /// Initializes the error with property values.
-        /// </summary>
-        /// <remarks>Not to be called directly. Called by ResClient.</remarks>
-        /// <param name="props">All error property values.</param>
-        public void Init(ResError err)
-        {
-            this.err = err;
-        }
 
         /// <summary>
         /// Handles incoming events.

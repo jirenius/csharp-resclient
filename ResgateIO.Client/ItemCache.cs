@@ -39,6 +39,8 @@ namespace ResgateIO.Client
         private Dictionary<string, CacheItem> cache = new Dictionary<string, CacheItem>();
         private object cacheLock = new object();
         private IResourceType[] resourceTypes;
+        private PatternMap<ResourceFactory> resourcePatterns;
+
         public ResClient Client { get; private set; }
 
         public const int ResourceTypeModel = 0;
@@ -61,11 +63,14 @@ namespace ResgateIO.Client
 
         private void createResourceTypes()
         {
+
+            resourcePatterns = new PatternMap<ResourceFactory>();
+
             resourceTypes = new IResourceType[]
             {
-                 new ResourceTypeModel(this),
-                 new ResourceTypeCollection(this),
-                 new ResourceTypeError(this),
+                 new ResourceTypeModel(this, resourcePatterns),
+                 new ResourceTypeCollection(this, resourcePatterns),
+                 new ResourceTypeError(this, resourcePatterns),
             };
 
             foreach (var resourceType in resourceTypes)
@@ -87,7 +92,7 @@ namespace ResgateIO.Client
         public void RegisterModelFactory(string pattern, ModelFactory factory)
         {
             var rt = (ResourceTypeModel)resourceTypes[ResourceTypeModel];
-            rt.Patterns.Add(pattern, factory);
+            rt.Patterns.Add(pattern, new ResourceFactory(factory));
         }
 
         /// <summary>
@@ -103,7 +108,7 @@ namespace ResgateIO.Client
         public void RegisterCollectionFactory(string pattern, CollectionFactory factory)
         {
             var rt = (ResourceTypeCollection)resourceTypes[ResourceTypeCollection];
-            rt.Patterns.Add(pattern, factory);
+            rt.Patterns.Add(pattern, new ResourceFactory(factory));
         }
 
         public CacheItem Subscribe(string rid, Action<CacheItem, ResponseCallback> subscribe)
