@@ -1,4 +1,4 @@
-﻿using Newtonsoft.Json;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
@@ -160,6 +160,11 @@ namespace ResgateIO.Client
                 try
                 {
                     await this.ws.SendAsync(dta);
+                }
+                catch (WebSocketException e)
+                {
+                    consumeRequest(req.Id);
+                    callback(null, new ResError(ResError.CodeConnectionError, e.ToString()));
                 }
                 catch (ResException e)
                 {
