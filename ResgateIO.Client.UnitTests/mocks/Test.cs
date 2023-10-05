@@ -31,10 +31,12 @@ namespace ResgateIO.Client.UnitTests
             { "model.e-d", new JObject { { "d", new JObject { { "rid", "model.d-e" } } } } },
             { "model.f-bd", new JObject { { "b", new JObject { { "rid", "model.b-a" } } }, { "d", new JObject { { "rid", "model.d-e" } } } } },
 
-            // Collection
+            // Collections
             { "test.collection", new JArray { "foo", "bar" } },
-            { "collection.g-a", new JArray { new JObject { { "rid", "model.a" } } } }
+            { "collection.g-a", new JArray { new JObject { { "rid", "model.a" } } } },
 
+            // Errors
+            { "test.timeout", new JObject { { "code", ResError.CodeTimeout }, { "message", "Request timeout" } } },
 
         };
 

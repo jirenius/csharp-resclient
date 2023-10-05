@@ -15,13 +15,10 @@ namespace ResgateIO.Client
 			public T Value;
         }
 
-        private readonly T defaultValue;
-
 		private Node root;
 
-		public PatternMap(T defaultValue)
+		public PatternMap()
         {
-            this.defaultValue = defaultValue;
 			this.root = new Node();
         }
 
@@ -101,7 +98,7 @@ namespace ResgateIO.Client
 			l.IsSet = true;
 		}
 
-		public T Get(string rid)
+		public bool TryGet(string rid, out T value)
 		{
 			// Remove any query part of the resource ID
 			int idx = rid.IndexOf("?");
@@ -109,15 +106,18 @@ namespace ResgateIO.Client
 			{ 
 				rid = rid.Substring(0, idx);
 			}
-			if (rid == "")
-            {
-				return defaultValue;
-            }
-			string[] tokens = rid.Split('.');
-			Node n = match(tokens, 0, root);
-			return n != null
-				? n.Value
-				: defaultValue;
+			if (rid != "")
+			{
+				string[] tokens = rid.Split('.');
+				Node n = match(tokens, 0, root);
+				if (n != null)
+				{
+					value = n.Value;
+					return true;
+				}
+			}
+			value = default(T);
+			return false;
 		}
 
 		private Node match(string[] ts, int i, Node l)
