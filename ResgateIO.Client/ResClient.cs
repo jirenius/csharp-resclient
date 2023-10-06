@@ -1,6 +1,5 @@
 ﻿using System;
 using System.IO;
-using System.Net.WebSockets;
 using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
@@ -575,11 +574,6 @@ namespace ResgateIO.Client
                 try
                 {
                     await ConnectAsync();
-                }
-                catch (WebSocketException e)
-                {
-                    callback(null, new ResError(ResError.CodeConnectionError, e.ToString()));
-                    return;
                 }
                 catch (ResException e)
                 {

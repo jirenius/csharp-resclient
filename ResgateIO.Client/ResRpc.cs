@@ -161,11 +161,6 @@ namespace ResgateIO.Client
                 {
                     await this.ws.SendAsync(dta);
                 }
-                catch (WebSocketException e)
-                {
-                    consumeRequest(req.Id);
-                    callback(null, new ResError(ResError.CodeConnectionError, e.ToString()));
-                }
                 catch (ResException e)
                 {
                     consumeRequest(req.Id);
