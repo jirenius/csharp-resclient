@@ -14,7 +14,7 @@ namespace ResgateIO.Client
 
         public string ResourceProperty { get { return "collections"; } }
 
-        public readonly PatternMap<CollectionFactory> Patterns;
+        public readonly PatternMap<ResourceFactory> Patterns;
 
         // Events
         public event ErrorEventHandler Error;
@@ -27,17 +27,21 @@ namespace ResgateIO.Client
             public int IdxOffset;
         }
 
-        public ResourceTypeCollection(ItemCache cache)
+        public ResourceTypeCollection(ItemCache cache, PatternMap<ResourceFactory> resourcePatterns)
         {
             this.cache = cache;
-            Patterns = new PatternMap<CollectionFactory>(defaultCollectionFactory);
+            Patterns = resourcePatterns;
         }
 
         public ResResource CreateResource(string rid)
         {
-            CollectionFactory f = Patterns.Get(rid);
+            CollectionFactory collectionFactory = defaultCollectionFactory;
+            if (Patterns.TryGet(rid, out ResourceFactory factory) && factory.CollectionFactory != null)
+            {
+                collectionFactory = factory.CollectionFactory;
+            }
             // [TODO] Catch any exception and return an ResError
-            return f(cache.Client, rid);
+            return collectionFactory(cache.Client, rid);
         }
 
         private ResCollectionResource defaultCollectionFactory(ResClient client, string rid)

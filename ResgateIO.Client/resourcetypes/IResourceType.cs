@@ -64,7 +64,7 @@ namespace ResgateIO.Client
         void SynchronizeResource(string rid, object resource, JToken data, Action<ResourceEventArgs> onEvent);
 
         /// <summary>
-        /// Gets an values stored in the resource.
+        /// Gets values stored in the resource.
         /// </summary>
         /// <param name="resource">Resource as returned from InitResource.</param>
         /// <returns></returns>
