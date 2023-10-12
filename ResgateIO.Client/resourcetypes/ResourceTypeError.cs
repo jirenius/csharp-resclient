@@ -68,7 +68,14 @@ namespace ResgateIO.Client
                 throw new InvalidOperationException("Error deserializing resource error.", ex);
             }
 
-            resource.Init(err);
+            try
+            {
+                resource.Init(err);
+            }
+            catch (Exception ex)
+            {
+                Error?.Invoke(this, new ErrorEventArgs(ex));
+            }
 
             return null;
         }
