@@ -38,7 +38,16 @@ namespace ResgateIO.Client
             ws = new ClientWebSocket();
             cts?.Dispose();
             cts = new CancellationTokenSource();
-            await ws.ConnectAsync(new Uri(url), cts.Token);
+
+            try
+            {
+                await ws.ConnectAsync(new Uri(url), cts.Token);
+            }
+            catch (WebSocketException ex)
+            {
+                throw new ResException(ResError.CodeConnectionError, ex.Message, ex);
+            }
+
             await Task.Factory.StartNew(ReceiveLoop, cts.Token, TaskCreationOptions.LongRunning, TaskScheduler.Default);
         }
 
@@ -67,7 +76,14 @@ namespace ResgateIO.Client
                 throw new InvalidOperationException("WebSocket not connected.");
             }
 
-            await ws.SendAsync(new ArraySegment<byte>(data), WebSocketMessageType.Binary, true, CancellationToken.None);
+            try
+            {
+                await ws.SendAsync(new ArraySegment<byte>(data), WebSocketMessageType.Binary, true, CancellationToken.None);
+            }
+            catch (WebSocketException ex)
+            {
+                throw new ResException(ResError.CodeConnectionError, ex.Message, ex);
+            }
         }
 
         private async Task ReceiveLoop()
