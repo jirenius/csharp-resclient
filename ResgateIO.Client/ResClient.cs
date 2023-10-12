@@ -173,13 +173,13 @@ namespace ResgateIO.Client
             {
                 await task;
             }
-            catch (Exception ex)
+            catch
             {
                 if (calledConnect)
                 {
                     connectTask = null;
                 }
-                throw ex;
+                throw;
             }
         }
 
@@ -206,10 +206,10 @@ namespace ResgateIO.Client
 
                 subscribeToAllStale();
             }
-            catch (Exception ex)
+            catch
             {
                 disposeRpc();
-                throw ex;
+                throw;
             }
         }
 
@@ -582,9 +582,10 @@ namespace ResgateIO.Client
                 }
                 catch (Exception e)
                 {
-                    callback(null, new ResError(e.Message));
+                    callback(null, new ResError(e.ToString()));
                     return;
                 }
+
                 rpc.Request(m, parameters, callback);
             });
         }

@@ -19,6 +19,11 @@ namespace ResgateIO.Client
         public string ResourceID { get; private set; }
 
         /// <summary>
+        /// Resource error.
+        /// </summary>
+        public ResError Error { get; protected set; }
+
+        /// <summary>
         /// Initializes a new instance of the ResResource class.
         /// </summary>
         public ResResource(string rid)
@@ -41,6 +46,16 @@ namespace ResgateIO.Client
         /// </remarks>
         /// <param name="props">Changed properties and their new value.</param>
         public virtual void HandleEvent(ResourceEventArgs ev) { }
+
+        /// <summary>
+        /// Initializes the resource with an error value.
+        /// </summary>
+        /// <remarks>Not to be called directly. Called by ResClient.</remarks>
+        /// <param name="err">Resource error.</param>
+        public virtual void Init(ResError err)
+        {
+            Error = err;
+        }
 
 
     }

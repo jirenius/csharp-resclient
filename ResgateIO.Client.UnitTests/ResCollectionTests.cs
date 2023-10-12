@@ -62,7 +62,7 @@ namespace ResgateIO.Client.UnitTests
         }
 
         [Fact]
-        public async Task SubscribeAsync_WithCustomCollectionFactory_GetsCustomCollectionl()
+        public async Task SubscribeAsync_WithCustomCollectionFactory_GetsCustomCollection()
         {
             Client.RegisterModelFactory("test.custom.*", (client, rid) => new MockModel(client, rid));
             Client.RegisterCollectionFactory("test.custom", (client, rid) => new ResCollection<MockModel>(client, rid));
