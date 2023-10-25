@@ -7,67 +7,61 @@ using Newtonsoft.Json.Linq;
 
 namespace ResgateIO.Client
 {
-
     public class ResClient : IResClient
     {
-        // Constants
-        /// <value>Supported RES protocol version.</value>
-        public const string ProtocolVersion = "1.2.1";
-
-        // Events
         public event EventHandler<ResourceEventArgs> ResourceEvent;
         public event ErrorEventHandler Error;
 
-        // Properties
+        /// <summary>
+        /// Supported RES protocol version.
+        /// </summary>
+        public const string ProtocolVersion = "1.2.1";
 
-        /// <value>Supported RES protocol version by Resgate.</value>
+        private const string LegacyProtocol = "1.1.1";
+
+        private static readonly int LegacyProtocolVersion = VersionToInt(LegacyProtocol);
+
+        private readonly string _hostUrl;
+        private readonly Func<Task<IWebSocket>> _webSocketFactory;
+        private readonly object _connectLock = new object();
+
+        private ResRpc _rpc;
+        private JsonSerializerSettings _serializerSettings;
+        private Func<ResClient, Task> _onConnectCallback;
+        private int _reconnectDelay = 3000;
+        private CancellationTokenSource _reconnectTokenSource;
+        private Task _connectTask;
+        private int _protocol;
+        private bool _isOnline;
+        private bool _tryReconnect;
+        private bool _disposedValue;
+        private ItemCache _cache;
+
+        /// <summary>
+        /// Supported RES protocol version by Resgate.
+        /// </summary>
         public string ResgateProtocol { get; private set; }
 
-        public bool Connected { get { return rpc != null; } }
-
-        // Fields
-        private ResRpc rpc;
-        private readonly string hostUrl;
-        private readonly Func<Task<IWebSocket>> wsFactory;
-        private JsonSerializerSettings serializerSettings;
-        private Func<ResClient, Task> onConnectCallback;
-        private int reconnectDelay = 3000;
-        private CancellationTokenSource reconnectTokenSource;
-        private readonly object connectLock = new object();
-        private Task connectTask;
-        private int protocol;
-        private bool online;
-        private bool tryReconnect;
-        private bool disposedValue;
-        //private Dictionary<string, CacheItem> itemCache = new Dictionary<string, CacheItem>();
-
-        private ItemCache cache;
-        //private HashSet<string> stale = new HashSet<string>();
-        //private object cacheLock = new object();
-        //private IResourceType[] resourceTypes;
-
-        // Private constants
-        private const string legacyProtocol = "1.1.1";
-        private static readonly int legacyProtocolVersion = versionToInt(legacyProtocol);
+        public bool Connected => _rpc != null;
 
         public ResClient(string hostUrl)
         {
-            this.hostUrl = hostUrl;
-            this.wsFactory = createWebSocket;
-            createItemCache();
+            _hostUrl = hostUrl;
+            _webSocketFactory = CreateWebSocket;
+            CreateItemCache();
         }
 
-        public ResClient(Func<Task<IWebSocket>> wsFactory)
+        public ResClient(Func<Task<IWebSocket>> webSocketFactory)
         {
-            this.wsFactory = wsFactory;
-            createItemCache();
+            _webSocketFactory = webSocketFactory;
+            CreateItemCache();
         }
 
-        private void createItemCache()
+        private void CreateItemCache()
         {
-            cache = new ItemCache(this);
-            cache.Error += new ErrorEventHandler(onError);
-            cache.ResourceEvent += onCacheResourceEvent;
+            _cache = new ItemCache(this);
+            _cache.Error += OnError;
+            _cache.ResourceEvent += OnCacheResourceEvent;
         }
 
         /// <summary>
@@ -78,7 +72,7 @@ namespace ResgateIO.Client
         /// <returns>The ResClient instance.</returns>
         public ResClient SetSerializerSettings(JsonSerializerSettings settings)
         {
-            serializerSettings = settings;
+            _serializerSettings = settings;
             return this;
         }
 
@@ -90,7 +84,7 @@ namespace ResgateIO.Client
         /// <returns>The ResClient instance.</returns>
         public ResClient SetOnConnect(Func<ResClient, Task> callback)
         {
-            onConnectCallback = callback;
+            _onConnectCallback = callback;
             return this;
         }
 
@@ -102,7 +96,7 @@ namespace ResgateIO.Client
         /// <returns>The ResClient instance.</returns>
         public ResClient SetReconnectDelay(int milliseconds)
         {
-            reconnectDelay = milliseconds;
+            _reconnectDelay = milliseconds;
             return this;
         }
 
@@ -114,7 +108,7 @@ namespace ResgateIO.Client
         /// <returns>The ResClient instance.</returns>
         public ResClient SetReconnectDelay(TimeSpan duration)
         {
-            reconnectDelay = duration.Milliseconds;
+            _reconnectDelay = duration.Milliseconds;
             return this;
         }
 
@@ -130,7 +124,7 @@ namespace ResgateIO.Client
         /// <param name="factory">Model factory delegate.</param>
         public void RegisterModelFactory(string pattern, ModelFactory factory)
         {
-            cache.RegisterModelFactory(pattern, factory);
+            _cache.RegisterModelFactory(pattern, factory);
         }
 
         /// <summary>
@@ -145,28 +139,30 @@ namespace ResgateIO.Client
         /// <param name="factory">Collection factory delegate.</param>
         public void RegisterCollectionFactory(string pattern, CollectionFactory factory)
         {
-            cache.RegisterCollectionFactory(pattern, factory);
+            _cache.RegisterCollectionFactory(pattern, factory);
         }
 
         public async Task ConnectAsync()
         {
             Task task;
-            bool calledConnect = false;
-            lock (connectLock)
+            var calledConnect = false;
+            lock (_connectLock)
             {
-                this.tryReconnect = true;
+                _tryReconnect = true;
 
-                if (this.reconnectTokenSource != null)
+                if (_reconnectTokenSource != null)
                 {
-                    this.reconnectTokenSource.Cancel();
-                    this.reconnectTokenSource = null;
+                    _reconnectTokenSource.Cancel();
+                    _reconnectTokenSource = null;
                 }
-                if (connectTask == null)
+
+                if (_connectTask == null)
                 {
                     calledConnect = true;
-                    connectTask = connectAsync();
+                    _connectTask = ConnectInternalAsync();
                 }
-                task = connectTask;
+
+                task = _connectTask;
             }
 
             try
@@ -177,38 +173,39 @@ namespace ResgateIO.Client
             {
                 if (calledConnect)
                 {
-                    connectTask = null;
+                    _connectTask = null;
                 }
+
                 throw;
             }
         }
 
-        private async Task connectAsync()
+        private async Task ConnectInternalAsync()
         {
-            var ws = await wsFactory();
+            var ws = await _webSocketFactory();
 
-            ws.OnClose += onClose;
+            ws.OnClose += OnClose;
 
-            rpc = new ResRpc(ws, serializerSettings);
-            rpc.ResourceEvent += onResourceEvent;
-            rpc.Error += onError;
+            _rpc = new ResRpc(ws, _serializerSettings);
+            _rpc.ResourceEvent += OnResourceEvent;
+            _rpc.Error += OnError;
 
             try
             {
-                await handshakeAsync();
+                await HandshakeAsync();
 
-                if (onConnectCallback != null)
+                if (_onConnectCallback != null)
                 {
-                    await onConnectCallback(this);
+                    await _onConnectCallback(this);
                 }
 
-                online = true;
+                _isOnline = true;
 
-                subscribeToAllStale();
+                SubscribeToAllStale();
             }
             catch
             {
-                disposeRpc();
+                DisposeRpc();
                 throw;
             }
         }
@@ -219,31 +216,31 @@ namespace ResgateIO.Client
         /// <returns>Task that completes once disconnected.</returns>
         public async Task DisconnectAsync()
         {
-            lock (connectLock)
+            lock (_connectLock)
             {
-                tryReconnect = false;
-                if (this.reconnectTokenSource != null)
+                _tryReconnect = false;
+                if (_reconnectTokenSource != null)
                 {
-                    this.reconnectTokenSource.Cancel();
-                    this.reconnectTokenSource = null;
+                    _reconnectTokenSource.Cancel();
+                    _reconnectTokenSource = null;
                 }
             }
 
-            if (rpc == null)
+            if (_rpc == null)
             {
                 return;
             }
 
             try
             {
-                await rpc.WebSocket.DisconnectAsync();
+                await _rpc.WebSocket.DisconnectAsync();
             }
             finally
             {
-                disposeRpc();
-                lock (connectLock)
+                DisposeRpc();
+                lock (_connectLock)
                 {
-                    online = false;
+                    _isOnline = false;
                 }
             }
         }
@@ -254,50 +251,49 @@ namespace ResgateIO.Client
         /// <param name="sender"></param>
         /// <param name="e"></param>
         /// <exception cref="NotImplementedException"></exception>
-        private void onClose(object sender, EventArgs e)
+        private void OnClose(object sender, EventArgs e)
         {
-            var hasStale = cache.SetAllStale();
-            disposeRpc();
+            var hasStale = _cache.SetAllStale();
+            DisposeRpc();
 
-            lock (connectLock)
+            lock (_connectLock)
             {
-                var wasOnline = online;
-                online = false;
+                var wasOnline = _isOnline;
+                _isOnline = false;
 
-                tryReconnect = hasStale && tryReconnect;
-                if (tryReconnect)
+                _tryReconnect = hasStale && _tryReconnect;
+                if (_tryReconnect)
                 {
                     if (wasOnline)
                     {
-                        Task.Run(reconnect);
+                        Task.Run(Reconnect);
                     }
                     else
                     {
-                        startReconnectTimer();
+                        StartReconnectTimer();
                     }
                 }
             }
         }
 
-        private void startReconnectTimer()
+        private void StartReconnectTimer()
         {
-            if (!tryReconnect)
+            if (!_tryReconnect)
             {
                 return;
             }
 
-            if (this.reconnectTokenSource != null)
+            if (_reconnectTokenSource != null)
             {
-                this.reconnectTokenSource.Cancel();
-                this.reconnectTokenSource = null;
+                _reconnectTokenSource.Cancel();
+                _reconnectTokenSource = null;
             }
 
-            this.reconnectTokenSource = new CancellationTokenSource();
-            Task.Delay(reconnectDelay, this.reconnectTokenSource.Token).ContinueWith(async _ => await reconnect());
-
+            _reconnectTokenSource = new CancellationTokenSource();
+            Task.Delay(_reconnectDelay, _reconnectTokenSource.Token).ContinueWith(async _ => await Reconnect());
         }
 
-        private async Task reconnect()
+        private async Task Reconnect()
         {
             try
             {
@@ -305,25 +301,13 @@ namespace ResgateIO.Client
             }
             catch (Exception ex)
             {
-                onError(this, new ErrorEventArgs(ex));
-                lock (connectLock)
+                OnError(this, new ErrorEventArgs(ex));
+                lock (_connectLock)
                 {
-                    startReconnectTimer();
+                    StartReconnectTimer();
                 }
             }
         }
-
-        ///// <summary>
-        ///// Get a resource from the API.
-        ///// </summary>
-        ///// <param name="rid">Resource ID.</param>
-        ///// <returns>The resource.</returns>
-        //public Task<ResResource> GetAsync(string rid)
-        //{
-        //    CacheItem ci = cache.GetOrSubscribe(rid, subscribe);
-
-        //    return ci.ResourceTask;
-        //}
 
         /// <summary>
         /// Get and subscribe to a resource from the API.
@@ -332,8 +316,7 @@ namespace ResgateIO.Client
         /// <returns>The resource.</returns>
         public Task<ResResource> SubscribeAsync(string rid)
         {
-            CacheItem ci = cache.Subscribe(rid, subscribe);
-
+            var ci = _cache.Subscribe(rid, Subscribe);
             return ci.ResourceTask;
         }
 
@@ -343,7 +326,7 @@ namespace ResgateIO.Client
         /// <param name="rid">Resource ID.</param>
         public async Task UnsubscribeAsync(string rid)
         {
-            await cache.Unsubscribe(rid, unsubscribe);
+            await _cache.Unsubscribe(rid, Unsubscribe);
         }
 
         /// <summary>
@@ -355,7 +338,7 @@ namespace ResgateIO.Client
         /// <returns>The result.</returns>
         public Task<object> CallAsync(string rid, string method, object parameters)
         {
-            return requestAsync("call", rid, method, parameters);
+            return RequestAsync("call", rid, method, parameters);
         }
 
         /// <summary>
@@ -378,7 +361,7 @@ namespace ResgateIO.Client
         /// <returns>The result.</returns>
         public Task<T> CallAsync<T>(string rid, string method, object parameters)
         {
-            return requestAsync<T>("call", rid, method, parameters);
+            return RequestAsync<T>("call", rid, method, parameters);
         }
 
         /// <summary>
@@ -401,7 +384,7 @@ namespace ResgateIO.Client
         /// <returns>The result.</returns>
         public Task<object> AuthAsync(string rid, string method, object parameters)
         {
-            return requestAsync("auth", rid, method, parameters);
+            return RequestAsync("auth", rid, method, parameters);
         }
 
         /// <summary>
@@ -424,7 +407,7 @@ namespace ResgateIO.Client
         /// <returns>The result.</returns>
         public Task<T> AuthAsync<T>(string rid, string method, object parameters)
         {
-            return requestAsync<T>("auth", rid, method, parameters);
+            return RequestAsync<T>("auth", rid, method, parameters);
         }
 
         /// <summary>
@@ -438,12 +421,11 @@ namespace ResgateIO.Client
             return AuthAsync<T>(rid, method, null);
         }
 
-        // _call
-        private async Task<object> requestAsync(string type, string rid, string method, object parameters)
+        private async Task<object> RequestAsync(string type, string rid, string method, object parameters)
         {
-            TaskCompletionSource<object> tcs = new TaskCompletionSource<object>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var tcs = new TaskCompletionSource<object>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-            send(type, rid, method, parameters, (result, err) =>
+            Send(type, rid, method, parameters, (result, err) =>
             {
                 if (err != null)
                 {
@@ -451,48 +433,40 @@ namespace ResgateIO.Client
                 }
                 else
                 {
-                    tcs.SetResult(handleRequestResult(result));
+                    tcs.SetResult(HandleRequestResult(result));
                 }
             });
 
             return await tcs.Task;
         }
 
-        private object handleRequestResult(RequestResult result)
+        private object HandleRequestResult(RequestResult result)
         {
-            if (protocol <= legacyProtocolVersion)
+            if (_protocol <= LegacyProtocolVersion)
             {
                 return result.Result;
             }
 
-            if (result.Result == null)
+            if (!(result.Result is JObject r))
             {
                 return null;
             }
 
-            JObject r = result.Result as JObject;
-            if (r == null)
-            {
-                return null; ;
-            }
-
             // Check if the result is a resource response
-            if (r.ContainsKey("rid"))
+            if (r.TryGetValue("rid", out var rid))
             {
-                var resourceID = (string)r["rid"];
+                var resourceId = (string)rid;
 
-                CacheItem ci = cache.AddResourcesAndSubscribe(result.Result, resourceID);
+                var ci = _cache.AddResourcesAndSubscribe(result.Result, resourceId);
                 return ci.Resource;
             }
 
             return r["payload"];
         }
 
-
-        // _call
-        private async Task<T> requestAsync<T>(string type, string rid, string method, object parameters)
+        private async Task<T> RequestAsync<T>(string type, string rid, string method, object parameters)
         {
-            var o = await requestAsync(type, rid, method, parameters);
+            var o = await RequestAsync(type, rid, method, parameters);
             if (o is T)
             {
                 return (T)o;
@@ -508,18 +482,16 @@ namespace ResgateIO.Client
             return (T)Convert.ChangeType(o, typeof(T));
         }
 
-        // _subscribe
-        private void subscribe(CacheItem ci, ResponseCallback callback)
+        private void Subscribe(CacheItem ci, ResponseCallback callback)
         {
-            send("subscribe", ci.ResourceID, null, null, callback);
+            Send("subscribe", ci.ResourceID, null, null, callback);
         }
 
-        private async Task handshakeAsync()
+        private async Task HandshakeAsync()
         {
-            TaskCompletionSource<object> tcs = new TaskCompletionSource<object>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var tcs = new TaskCompletionSource<object>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-
-            rpc.Request("version", new VersionRequestDto(ProtocolVersion), (result, err) =>
+            _rpc.Request("version", new VersionRequestDto(ProtocolVersion), (result, err) =>
             {
                 if (err != null && err.Code != ResError.CodeInvalidRequest)
                 {
@@ -529,20 +501,19 @@ namespace ResgateIO.Client
 
                 try
                 {
-
-                    protocol = 0;
+                    _protocol = 0;
                     if (result.Result != null)
                     {
                         var versionResponse = result.Result.ToObject<VersionResponseDto>();
-                        protocol = versionToInt(versionResponse.Protocol);
+                        _protocol = VersionToInt(versionResponse.Protocol);
                         ResgateProtocol = versionResponse.Protocol;
                     }
 
                     // Set legacy protocol.
-                    if (protocol == 0)
+                    if (_protocol == 0)
                     {
-                        protocol = versionToInt(legacyProtocol);
-                        ResgateProtocol = legacyProtocol;
+                        _protocol = VersionToInt(LegacyProtocol);
+                        ResgateProtocol = LegacyProtocol;
                     }
                 }
                 catch (Exception ex)
@@ -557,13 +528,12 @@ namespace ResgateIO.Client
             await tcs.Task;
         }
 
-        private void unsubscribe(string rid, ResponseCallback callback)
+        private void Unsubscribe(string rid, ResponseCallback callback)
         {
-            send("unsubscribe", rid, null, null, callback);
+            Send("unsubscribe", rid, null, null, callback);
         }
 
-        // _send
-        private void send(string action, string rid, string method, object parameters, ResponseCallback callback)
+        private void Send(string action, string rid, string method, object parameters, ResponseCallback callback)
         {
             Task.Run(async () =>
             {
@@ -586,33 +556,32 @@ namespace ResgateIO.Client
                     return;
                 }
 
-                rpc.Request(m, parameters, callback);
+                _rpc.Request(m, parameters, callback);
             });
         }
 
-        // _subscribeToAllStale
-        private void subscribeToAllStale()
+        private void SubscribeToAllStale()
         {
-            cache.SubscribeStale(subscribe);
+            _cache.SubscribeStale(Subscribe);
         }
 
-        private void disposeRpc()
+        private void DisposeRpc()
         {
-            rpc?.Dispose();
-            rpc = null;
-            connectTask = null;
+            _rpc?.Dispose();
+            _rpc = null;
+            _connectTask = null;
         }
 
-        private async Task<IWebSocket> createWebSocket()
+        private async Task<IWebSocket> CreateWebSocket()
         {
             var webSocket = new WebSocket();
-            await webSocket.ConnectAsync(hostUrl);
+            await webSocket.ConnectAsync(_hostUrl);
             return webSocket;
         }
 
-        private static int versionToInt(string version)
+        private static int VersionToInt(string version)
         {
-            if (String.IsNullOrEmpty(version))
+            if (string.IsNullOrEmpty(version))
             {
                 return 0;
             }
@@ -623,7 +592,7 @@ namespace ResgateIO.Client
                 var parts = version.Split('.');
                 foreach (var part in parts)
                 {
-                    v = v * 1000 + Int32.Parse(part);
+                    v = v * 1000 + int.Parse(part);
                 }
             }
             catch (Exception)
@@ -633,11 +602,11 @@ namespace ResgateIO.Client
             return v;
         }
 
-        private void onResourceEvent(object sender, ResourceEventArgs ev)
+        private void OnResourceEvent(object sender, ResourceEventArgs ev)
         {
             try
             {
-                cache.HandleEvent(ev);
+                _cache.HandleEvent(ev);
             }
             catch (Exception ex)
             {
@@ -645,27 +614,25 @@ namespace ResgateIO.Client
             }
         }
 
-        private void onError(object sender, ErrorEventArgs ev)
+        private void OnError(object sender, ErrorEventArgs ev)
         {
-            // Bubble up
             Error?.Invoke(this, ev);
         }
 
-        private void onCacheResourceEvent(object sender, ResourceEventArgs ev)
+        private void OnCacheResourceEvent(object sender, ResourceEventArgs ev)
         {
-            // Bubble up
             ResourceEvent?.Invoke(this, ev);
         }
 
         protected virtual void Dispose(bool disposing)
         {
-            if (!disposedValue)
+            if (!_disposedValue)
             {
                 if (disposing)
                 {
-                    rpc?.Dispose();
+                    _rpc?.Dispose();
                 }
-                disposedValue = true;
+                _disposedValue = true;
             }
         }
 
