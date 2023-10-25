@@ -42,7 +42,7 @@ namespace ResgateIO.Client
         /// </summary>
         public string ResgateProtocol { get; private set; }
 
-        public bool Connected => _rpc != null;
+        public bool IsConnected => _rpc != null;
 
         public ResClient(string hostUrl)
         {
