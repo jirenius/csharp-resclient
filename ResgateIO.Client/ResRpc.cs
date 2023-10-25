@@ -29,10 +29,10 @@ namespace ResgateIO.Client
         {
             WebSocket = ws;
             _serializerSettings = serializerSettings;
-            WebSocket.OnMessage += OnMessage;
+            WebSocket.MessageReceived += WebSocket_MessageReceived;
         }
 
-        private void OnMessage(object sender, MessageEventArgs e)
+        private void WebSocket_MessageReceived(object sender, MessageEventArgs e)
         {
             string msg = null;
             MessageDto rpcmsg = null;

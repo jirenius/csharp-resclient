@@ -8,7 +8,7 @@ namespace ResgateIO.Client
 {
     public class WebSocket : IWebSocket
     {
-        public event EventHandler<MessageEventArgs> OnMessage;
+        public event EventHandler<MessageEventArgs> MessageReceived;
         public event EventHandler OnClose;
 
         private const int ReceiveBufferSize = 8192;
@@ -115,7 +115,7 @@ namespace ResgateIO.Client
                             break;
                         }
 
-                        MessageReceived(inputStream.ToArray());
+                        OnMessageReceived(inputStream.ToArray());
                     }
                 }
             }
@@ -126,12 +126,9 @@ namespace ResgateIO.Client
             }
         }
 
-        private void MessageReceived(byte[] msg)
+        private void OnMessageReceived(byte[] msg)
         {
-            OnMessage?.Invoke(this, new MessageEventArgs
-            {
-                Message = msg
-            });
+            MessageReceived?.Invoke(this, new MessageEventArgs(msg));
         }
 
         public void Dispose()

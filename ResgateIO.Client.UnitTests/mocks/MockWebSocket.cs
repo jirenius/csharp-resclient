@@ -1,9 +1,6 @@
-﻿using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
 using Xunit.Abstractions;
 
@@ -11,14 +8,14 @@ namespace ResgateIO.Client.UnitTests
 {
     public class MockWebSocket : IWebSocket
     {
-        public event EventHandler<MessageEventArgs> OnMessage;
+        public event EventHandler<MessageEventArgs> MessageReceived;
         public event EventHandler OnClose;
 
         private readonly ITestOutputHelper log;
-        private HashSet<int> requestIds = new HashSet<int>();
-        private Queue<MockRequest> requestQueue = new Queue<MockRequest>();
-        private Queue<TaskCompletionSource<MockRequest>> awaiters = new Queue<TaskCompletionSource<MockRequest>>();
-        private object requestLock = new object();
+        private readonly HashSet<int> requestIds = new HashSet<int>();
+        private readonly Queue<MockRequest> requestQueue = new Queue<MockRequest>();
+        private readonly Queue<TaskCompletionSource<MockRequest>> awaiters = new Queue<TaskCompletionSource<MockRequest>>();
+        private readonly object requestLock = new object();
         private bool Closed = false;
 
         public MockWebSocket(ITestOutputHelper output)
@@ -81,10 +78,7 @@ namespace ResgateIO.Client.UnitTests
         public void SendMessage(byte[] data)
         {
             log?.WriteLine("--> {0}", Encoding.UTF8.GetString(data));
-            OnMessage.Invoke(this, new MessageEventArgs
-            {
-                Message = data,
-            });
+            MessageReceived.Invoke(this, new MessageEventArgs(data));
         }
 
         public async Task<MockRequest> GetRequestAsync()
