@@ -9,7 +9,7 @@ namespace ResgateIO.Client
     public class WebSocket : IWebSocket
     {
         public event EventHandler<MessageEventArgs> MessageReceived;
-        public event EventHandler OnClose;
+        public event EventHandler<ConnectionStatusEventArgs> ConnectionStatusChanged;
 
         private const int ReceiveBufferSize = 8192;
 
@@ -47,6 +47,10 @@ namespace ResgateIO.Client
                 _cancellationTokenSource.Token,
                 TaskCreationOptions.LongRunning,
                 TaskScheduler.Default);
+
+            ConnectionStatusChanged?.Invoke(
+                this,
+                new ConnectionStatusEventArgs(ConnectionStatus.Connected));
         }
 
         public async Task DisconnectAsync()
@@ -61,6 +65,10 @@ namespace ResgateIO.Client
                     WebSocketCloseStatus.NormalClosure,
                     string.Empty,
                     CancellationToken.None);
+
+                ConnectionStatusChanged?.Invoke(
+                    this,
+                    new ConnectionStatusEventArgs(ConnectionStatus.DisconnectedGracefully));
             }
 
             _webSocket.Dispose();
@@ -122,7 +130,9 @@ namespace ResgateIO.Client
             catch (TaskCanceledException) { }
             finally
             {
-                OnClose?.Invoke(this, EventArgs.Empty);
+                ConnectionStatusChanged?.Invoke(
+                    this,
+                    new ConnectionStatusEventArgs(ConnectionStatus.DisconnectedWithError));
             }
         }
 

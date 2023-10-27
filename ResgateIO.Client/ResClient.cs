@@ -11,6 +11,7 @@ namespace ResgateIO.Client
     {
         public event EventHandler<ResourceEventArgs> ResourceEvent;
         public event ErrorEventHandler Error;
+        public event EventHandler<ConnectionStatusEventArgs> ConnectionStatusChanged;
 
         /// <summary>
         /// Supported RES protocol version.
@@ -182,11 +183,11 @@ namespace ResgateIO.Client
 
         private async Task ConnectInternalAsync()
         {
-            var ws = await _webSocketFactory();
+            var webSocket = await _webSocketFactory();
 
-            ws.OnClose += OnClose;
+            webSocket.ConnectionStatusChanged += WebSocket_ConnectionStatusChanged;
 
-            _rpc = new ResRpc(ws, _serializerSettings);
+            _rpc = new ResRpc(webSocket, _serializerSettings);
             _rpc.ResourceEvent += OnResourceEvent;
             _rpc.Error += OnError;
 
@@ -202,12 +203,25 @@ namespace ResgateIO.Client
                 _isOnline = true;
 
                 SubscribeToAllStale();
+
+                ConnectionStatusChanged?.Invoke(this, new ConnectionStatusEventArgs(ConnectionStatus.Connected));
             }
             catch
             {
                 DisposeRpc();
                 throw;
             }
+        }
+
+        private void WebSocket_ConnectionStatusChanged(object sender, ConnectionStatusEventArgs e)
+        {
+            if (e.ConnectionStatus == ConnectionStatus.DisconnectedGracefully ||
+                e.ConnectionStatus == ConnectionStatus.DisconnectedWithError)
+            {
+                WebSocket_Disconnected();
+            }
+
+            ConnectionStatusChanged?.Invoke(this, e);
         }
 
         /// <summary>
@@ -245,13 +259,7 @@ namespace ResgateIO.Client
             }
         }
 
-        /// <summary>
-        /// Called when the WebSocket connection is closed.
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        /// <exception cref="NotImplementedException"></exception>
-        private void OnClose(object sender, EventArgs e)
+        private void WebSocket_Disconnected()
         {
             var hasStale = _cache.SetAllStale();
             DisposeRpc();

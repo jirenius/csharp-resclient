@@ -25,10 +25,10 @@ namespace ResgateIO.Client
 
         public IWebSocket WebSocket { get; }
 
-        public ResRpc(IWebSocket ws, JsonSerializerSettings serializerSettings)
+        public ResRpc(IWebSocket webSocket, JsonSerializerSettings serializerSettings)
         {
-            WebSocket = ws;
             _serializerSettings = serializerSettings;
+            WebSocket = webSocket;
             WebSocket.MessageReceived += WebSocket_MessageReceived;
         }
 

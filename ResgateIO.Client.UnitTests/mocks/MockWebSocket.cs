@@ -9,7 +9,7 @@ namespace ResgateIO.Client.UnitTests
     public class MockWebSocket : IWebSocket
     {
         public event EventHandler<MessageEventArgs> MessageReceived;
-        public event EventHandler OnClose;
+        public event EventHandler<ConnectionStatusEventArgs> ConnectionStatusChanged;
 
         private readonly ITestOutputHelper log;
         private readonly HashSet<int> requestIds = new HashSet<int>();
@@ -43,7 +43,8 @@ namespace ResgateIO.Client.UnitTests
 
                 if (requestIds.Contains(request.Id))
                 {
-                    throw new InvalidOperationException(String.Format("Request ID {0} sent more than once for the same connection.", request.Id));
+                    throw new InvalidOperationException(
+                        $"Request ID {request.Id} sent more than once for the same connection.");
                 }
 
                 if (awaiters.Count == 0)
@@ -71,7 +72,7 @@ namespace ResgateIO.Client.UnitTests
                 Closed = true;
             }
             log?.WriteLine("<-X Disconnected");
-            OnClose?.Invoke(this, EventArgs.Empty);
+            ConnectionStatusChanged?.Invoke(this, new ConnectionStatusEventArgs(ConnectionStatus.DisconnectedGracefully));
             return Task.CompletedTask;
         }
 
