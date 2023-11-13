@@ -1,84 +1,96 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using System.Net.WebSockets;
-using System.Threading.Tasks;
-using System.Threading;
 using System.IO;
+using System.Net.WebSockets;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace ResgateIO.Client
 {
     public class WebSocket : IWebSocket
     {
-        public int ReceiveBufferSize = 8192;
-        public event EventHandler<MessageEventArgs> OnMessage;
-        public event EventHandler OnClose;
+        public event EventHandler<MessageEventArgs> MessageReceived;
+        public event EventHandler<ConnectionStatusEventArgs> ConnectionStatusChanged;
 
-        private ClientWebSocket ws;
-        private CancellationTokenSource cts;
+        private const int ReceiveBufferSize = 8192;
 
-        public WebSocket()
-        {
-        }
+        private ClientWebSocket _webSocket;
+        private CancellationTokenSource _cancellationTokenSource;
 
         public async Task ConnectAsync(string url)
         {
-            if (ws != null)
+            if (_webSocket != null)
             {
-                if (ws.State == WebSocketState.Open)
+                if (_webSocket.State == WebSocketState.Open)
                 {
                     return;
                 }
-                else
-                {
-                    ws.Dispose();
-                }
+
+                _webSocket.Dispose();
             }
 
-            ws = new ClientWebSocket();
-            cts?.Dispose();
-            cts = new CancellationTokenSource();
+            _webSocket = new ClientWebSocket();
+            _cancellationTokenSource?.Dispose();
+            _cancellationTokenSource = new CancellationTokenSource();
 
             try
             {
-                await ws.ConnectAsync(new Uri(url), cts.Token);
+                await _webSocket.ConnectAsync(
+                    new Uri(url),
+                    _cancellationTokenSource.Token);
             }
             catch (WebSocketException ex)
             {
                 throw new ResException(ResError.CodeConnectionError, ex.Message, ex);
             }
 
-            await Task.Factory.StartNew(ReceiveLoop, cts.Token, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+            await Task.Factory.StartNew(ReceiveLoop,
+                _cancellationTokenSource.Token,
+                TaskCreationOptions.LongRunning,
+                TaskScheduler.Default);
+
+            ConnectionStatusChanged?.Invoke(
+                this,
+                new ConnectionStatusEventArgs(ConnectionStatus.Connected));
         }
 
         public async Task DisconnectAsync()
         {
-            if (ws == null)
-            {
+            if (_webSocket == null)
                 return;
-            }
-            
-            if (ws.State == WebSocketState.Open)
+
+            if (_webSocket.State == WebSocketState.Open)
             {
-                cts.CancelAfter(TimeSpan.FromSeconds(2));
-                await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "", CancellationToken.None);
+                _cancellationTokenSource.CancelAfter(TimeSpan.FromSeconds(2));
+                await _webSocket.CloseAsync(
+                    WebSocketCloseStatus.NormalClosure,
+                    string.Empty,
+                    CancellationToken.None);
+
+                ConnectionStatusChanged?.Invoke(
+                    this,
+                    new ConnectionStatusEventArgs(ConnectionStatus.DisconnectedGracefully));
             }
-            ws.Dispose();
-            ws = null;
-            cts?.Dispose();
-            cts = null;
+
+            _webSocket.Dispose();
+            _webSocket = null;
+            _cancellationTokenSource?.Dispose();
+            _cancellationTokenSource = null;
         }
 
         public async Task SendAsync(byte[] data)
         {
-            if (ws == null || ws.State != WebSocketState.Open)
+            if (_webSocket == null || _webSocket.State != WebSocketState.Open)
             {
                 throw new InvalidOperationException("WebSocket not connected.");
             }
 
             try
             {
-                await ws.SendAsync(new ArraySegment<byte>(data), WebSocketMessageType.Binary, true, CancellationToken.None);
+                await _webSocket.SendAsync(
+                    new ArraySegment<byte>(data),
+                    WebSocketMessageType.Binary,
+                    true,
+                    CancellationToken.None);
             }
             catch (WebSocketException ex)
             {
@@ -88,56 +100,79 @@ namespace ResgateIO.Client
 
         private async Task ReceiveLoop()
         {
-            WebSocketReceiveResult receiveResult = null;
             var buffer = new byte[ReceiveBufferSize];
             try
             {
-                while (!cts.Token.IsCancellationRequested)
+                while (!_cancellationTokenSource.Token.IsCancellationRequested)
                 {
                     using (var inputStream = new MemoryStream(ReceiveBufferSize))
                     {
+                        WebSocketReceiveResult receiveResult;
                         do
                         {
-                            receiveResult = await ws.ReceiveAsync(new ArraySegment<byte>(buffer), cts.Token);
+                            receiveResult = await _webSocket.ReceiveAsync(
+                                new ArraySegment<byte>(buffer),
+                                _cancellationTokenSource.Token);
+
                             if (receiveResult.MessageType != WebSocketMessageType.Close)
                                 inputStream.Write(buffer, 0, receiveResult.Count);
-                        }
-                        while (!receiveResult.EndOfMessage);
+                        } while (!receiveResult.EndOfMessage);
 
                         if (receiveResult.MessageType == WebSocketMessageType.Close)
                         {
                             break;
                         }
-                        MessageReceived(inputStream.ToArray());
+
+                        OnMessageReceived(inputStream.ToArray());
                     }
                 }
             }
             catch (TaskCanceledException) { }
             finally
             {
-                OnClose?.Invoke(this, EventArgs.Empty);
+                ConnectionStatusChanged?.Invoke(
+                    this,
+                    new ConnectionStatusEventArgs(ConnectionStatus.DisconnectedWithError));
             }
         }
 
-        private void MessageReceived(byte[] msg)
+        private void OnMessageReceived(byte[] msg)
         {
-            OnMessage?.Invoke(this, new MessageEventArgs
-            {
-                Message = msg
-            });
+            MessageReceived?.Invoke(this, new MessageEventArgs(msg));
         }
 
         public void Dispose()
         {
-            if (ws != null)
+            if (_webSocket == null)
+                return;
+
+            if (_webSocket.State == WebSocketState.Open)
             {
-                if (ws.State == WebSocketState.Open)
-                {
-                    cts.CancelAfter(TimeSpan.FromSeconds(2));
-                    ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "", CancellationToken.None);
-                }
-                try { if (ws != null) { ws.Dispose(); ws = null; } } catch (Exception) { }
-                try { if (cts != null) { cts.Dispose(); cts = null; } } catch (Exception) { }
+                _cancellationTokenSource.CancelAfter(TimeSpan.FromSeconds(2));
+                _webSocket.CloseAsync(
+                    WebSocketCloseStatus.NormalClosure,
+                    string.Empty,
+                    CancellationToken.None);
+            }
+
+            try
+            {
+                _webSocket?.Dispose();
+                _webSocket = null;
+            }
+            catch
+            {
+                // ignored
+            }
+
+            try
+            {
+                _cancellationTokenSource?.Dispose();
+                _cancellationTokenSource = null;
+            }
+            catch
+            {
+                // Ignore
             }
         }
     }
