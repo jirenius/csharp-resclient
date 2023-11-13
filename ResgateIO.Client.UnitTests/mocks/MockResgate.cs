@@ -13,8 +13,6 @@ namespace ResgateIO.Client.UnitTests
     /// </summary>
     public class MockResgate
     {
-        public event EventHandler<MessageEventArgs> OnMessage;
-
         public readonly MockWebSocket WebSocket;
         public string Protocol { get; private set; }
 

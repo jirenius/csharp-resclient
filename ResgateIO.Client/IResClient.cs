@@ -9,8 +9,9 @@ namespace ResgateIO.Client
     {
         event EventHandler<ResourceEventArgs> ResourceEvent;
         event ErrorEventHandler Error;
+        event EventHandler<ConnectionStatusEventArgs> ConnectionStatusChanged;
         string ResgateProtocol { get; }
-        bool Connected { get; }
+        bool IsConnected { get; }
         ResClient SetSerializerSettings(JsonSerializerSettings settings);
         ResClient SetOnConnect(Func<ResClient, Task> callback);
         ResClient SetReconnectDelay(int milliseconds);
