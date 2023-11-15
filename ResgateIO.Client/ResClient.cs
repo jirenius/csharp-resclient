@@ -247,7 +247,7 @@ namespace ResgateIO.Client
 
             try
             {
-                await _rpc.WebSocket.DisconnectAsync();
+                await _rpc.DisconnectAsync();
             }
             finally
             {

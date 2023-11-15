@@ -11,25 +11,22 @@ namespace ResgateIO.Client
 
     internal class ResRpc : IDisposable
     {
-        // Events
         public event EventHandler<ResourceEventArgs> ResourceEvent;
         public event ErrorEventHandler Error;
 
         private readonly object _requestLock = new object();
-
         private readonly JsonSerializerSettings _serializerSettings;
+        private readonly IWebSocket _webSocket;
 
         private int _requestId = 1;
         private Dictionary<int, RpcRequest> _requests = new Dictionary<int, RpcRequest>();
         private bool _disposedValue;
 
-        public IWebSocket WebSocket { get; }
-
         public ResRpc(IWebSocket webSocket, JsonSerializerSettings serializerSettings)
         {
             _serializerSettings = serializerSettings;
-            WebSocket = webSocket;
-            WebSocket.MessageReceived += WebSocket_MessageReceived;
+            _webSocket = webSocket;
+            _webSocket.MessageReceived += WebSocket_MessageReceived;
         }
 
         private void WebSocket_MessageReceived(object sender, MessageEventArgs e)
@@ -141,7 +138,7 @@ namespace ResgateIO.Client
             {
                 try
                 {
-                    await this.WebSocket.SendAsync(dta);
+                    await this._webSocket.SendAsync(dta);
                 }
                 catch (ResException e)
                 {
@@ -175,6 +172,11 @@ namespace ResgateIO.Client
             throw new InvalidOperationException($"Invalid incoming request ID: {id}");
         }
 
+        public Task DisconnectAsync()
+        {
+            return _webSocket.DisconnectAsync();
+        }
+
         protected virtual void Dispose(bool disposing)
         {
             if (_disposedValue)
@@ -194,7 +196,7 @@ namespace ResgateIO.Client
                     Task.Run(() => req.Value.Callback(null, new ResError(ResError.CodeConnectionError, "Connection closed")));
                 }
 
-                WebSocket.Dispose();
+                _webSocket.Dispose();
             }
             _disposedValue = true;
         }
