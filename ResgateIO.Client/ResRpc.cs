@@ -31,13 +31,13 @@ namespace ResgateIO.Client
 
         private void WebSocket_MessageReceived(object sender, MessageEventArgs e)
         {
-            string msg = null;
-            MessageDto rpcmsg = null;
+            string message = null;
+            MessageDto rpcMessage = null;
 
             try
             {
-                msg = Encoding.UTF8.GetString(e.Message);
-                rpcmsg = JsonConvert.DeserializeObject<MessageDto>(msg);
+                message = Encoding.UTF8.GetString(e.Message);
+                rpcMessage = JsonConvert.DeserializeObject<MessageDto>(message);
             }
             catch (Exception ex)
             {
@@ -48,17 +48,17 @@ namespace ResgateIO.Client
                             e.Message, "Error deserializing incoming message.", ex)));
             }
 
-            if (rpcmsg.Id != null)
+            if (rpcMessage?.Id != null)
             {
-                HandleResponse(rpcmsg);
+                HandleResponse(rpcMessage);
             }
-            else if (rpcmsg.Event != null)
+            else if (rpcMessage?.Event != null)
             {
-                HandleEvent(rpcmsg);
+                HandleEvent(rpcMessage);
             }
             else
             {
-                throw new InvalidOperationException($"Invalid message from server: {msg}");
+                throw new InvalidOperationException($"Invalid message from server: {message}");
             }
         }
 
@@ -66,7 +66,7 @@ namespace ResgateIO.Client
         {
             try
             {
-                RpcRequest req = ConsumeRequest(message.Id ?? default);
+                var req = ConsumeRequest(message.Id ?? default);
 
                 if (message.Error != null)
                 {
@@ -138,7 +138,7 @@ namespace ResgateIO.Client
             {
                 try
                 {
-                    await this._webSocket.SendAsync(dta);
+                    await _webSocket.SendAsync(dta);
                 }
                 catch (ResException e)
                 {
@@ -157,14 +157,14 @@ namespace ResgateIO.Client
         {
             lock (_requestLock)
             {
-                if (this._requests == null)
+                if (_requests == null)
                 {
                     throw new InvalidOperationException($"Incoming request disposed: {id}");
                 }
 
-                if (this._requests.TryGetValue(id, out RpcRequest req))
+                if (_requests.TryGetValue(id, out var req))
                 {
-                    this._requests.Remove(id);
+                    _requests.Remove(id);
                     return req;
                 }
             }
@@ -188,8 +188,8 @@ namespace ResgateIO.Client
                 Dictionary<int, RpcRequest> pendingRequests;
                 lock (_requestLock)
                 {
-                    pendingRequests = this._requests;
-                    this._requests = null;
+                    pendingRequests = _requests;
+                    _requests = null;
                 }
                 foreach (var req in pendingRequests)
                 {
