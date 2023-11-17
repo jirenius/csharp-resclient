@@ -164,7 +164,7 @@ namespace ResgateIO.Client
 
             try
             {
-                await task;
+                await task.ConfigureAwait(false);
             }
             catch
             {
@@ -179,7 +179,8 @@ namespace ResgateIO.Client
 
         private async Task ConnectInternalAsync()
         {
-            var webSocket = await _webSocketFactory();
+            var webSocket = await _webSocketFactory()
+                .ConfigureAwait(false);
 
             webSocket.ConnectionStatusChanged += WebSocket_ConnectionStatusChanged;
 
@@ -189,11 +190,13 @@ namespace ResgateIO.Client
 
             try
             {
-                await HandshakeAsync();
+                await HandshakeAsync()
+                    .ConfigureAwait(false);
 
                 if (_onConnectCallback != null)
                 {
-                    await _onConnectCallback(this);
+                    await _onConnectCallback(this)
+                        .ConfigureAwait(false);
                 }
 
                 _isOnline = true;
@@ -239,7 +242,8 @@ namespace ResgateIO.Client
 
             try
             {
-                await _rpc.DisconnectAsync();
+                await _rpc.DisconnectAsync()
+                    .ConfigureAwait(false);
             }
             finally
             {
@@ -286,14 +290,18 @@ namespace ResgateIO.Client
             CancelOngoingReconnect();
 
             _reconnectCancellationTokenSource = new CancellationTokenSource();
-            Task.Delay(_reconnectDelay, _reconnectCancellationTokenSource.Token).ContinueWith(async _ => await Reconnect());
+            Task.Delay(
+                    _reconnectDelay,
+                    _reconnectCancellationTokenSource.Token)
+                .ContinueWith(async _ => await Reconnect().ConfigureAwait(false));
         }
 
         private async Task Reconnect()
         {
             try
             {
-                await ConnectAsync();
+                await ConnectAsync()
+                    .ConfigureAwait(false);
             }
             catch (Exception ex)
             {
@@ -322,7 +330,9 @@ namespace ResgateIO.Client
         /// <param name="rid">Resource ID.</param>
         public async Task UnsubscribeAsync(string rid)
         {
-            await _cache.Unsubscribe(rid, Unsubscribe);
+            await _cache
+                .Unsubscribe(rid, Unsubscribe)
+                .ConfigureAwait(false);
         }
 
         /// <summary>
@@ -433,7 +443,8 @@ namespace ResgateIO.Client
                 }
             });
 
-            return await tcs.Task;
+            return await tcs.Task
+                .ConfigureAwait(false);
         }
 
         private object HandleRequestResult(RequestResult result)
@@ -462,7 +473,9 @@ namespace ResgateIO.Client
 
         private async Task<T> RequestAsync<T>(string type, string rid, string method, object parameters)
         {
-            var o = await RequestAsync(type, rid, method, parameters);
+            var o = await RequestAsync(type, rid, method, parameters)
+                .ConfigureAwait(false);
+
             if (o is T)
             {
                 return (T)o;
@@ -521,7 +534,8 @@ namespace ResgateIO.Client
                 tcs.SetResult(null);
             });
 
-            await tcs.Task;
+            await tcs.Task
+                .ConfigureAwait(false);
         }
 
         private void Unsubscribe(string rid, ResponseCallback callback)
@@ -539,7 +553,8 @@ namespace ResgateIO.Client
 
                 try
                 {
-                    await ConnectAsync();
+                    await ConnectAsync()
+                        .ConfigureAwait(false);
                 }
                 catch (ResException e)
                 {
@@ -571,7 +586,8 @@ namespace ResgateIO.Client
         private async Task<IWebSocket> CreateWebSocket()
         {
             var webSocket = new WebSocket();
-            await webSocket.ConnectAsync(_hostUrl);
+            await webSocket.ConnectAsync(_hostUrl)
+                .ConfigureAwait(false);
             return webSocket;
         }
 

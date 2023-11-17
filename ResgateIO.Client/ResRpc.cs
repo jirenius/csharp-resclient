@@ -138,7 +138,8 @@ namespace ResgateIO.Client
             {
                 try
                 {
-                    await _webSocket.SendAsync(dta);
+                    await _webSocket.SendAsync(dta)
+                        .ConfigureAwait(false);
                 }
                 catch (ResException e)
                 {
@@ -195,6 +196,9 @@ namespace ResgateIO.Client
 
         private void AbortPendingRequests()
         {
+            if (_requests == null)
+                return;
+
             Dictionary<int, RpcRequest> pendingRequests;
             lock (_requestLock)
             {
