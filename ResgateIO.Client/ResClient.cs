@@ -1,11 +1,4 @@
-﻿using System;
-using System.IO;
-using System.Threading;
-using System.Threading.Tasks;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
-
-namespace ResgateIO.Client
+﻿namespace ResgateIO.Client
 {
     public class ResClient : IResClient
     {
@@ -30,7 +23,7 @@ namespace ResgateIO.Client
         private JsonSerializerSettings _serializerSettings;
         private Func<ResClient, Task> _onConnectCallback;
         private int _reconnectDelay = 3000;
-        private CancellationTokenSource _reconnectTokenSource;
+        private CancellationTokenSource _reconnectCancellationTokenSource;
         private Task _connectTask;
         private int _protocol;
         private bool _isOnline;
@@ -151,11 +144,7 @@ namespace ResgateIO.Client
             {
                 _tryReconnect = true;
 
-                if (_reconnectTokenSource != null)
-                {
-                    _reconnectTokenSource.Cancel();
-                    _reconnectTokenSource = null;
-                }
+                CancelOngoingReconnect();
 
                 if (_connectTask == null)
                 {
@@ -233,11 +222,7 @@ namespace ResgateIO.Client
             lock (_connectLock)
             {
                 _tryReconnect = false;
-                if (_reconnectTokenSource != null)
-                {
-                    _reconnectTokenSource.Cancel();
-                    _reconnectTokenSource = null;
-                }
+                CancelOngoingReconnect();
             }
 
             if (_rpc == null)
@@ -291,14 +276,10 @@ namespace ResgateIO.Client
                 return;
             }
 
-            if (_reconnectTokenSource != null)
-            {
-                _reconnectTokenSource.Cancel();
-                _reconnectTokenSource = null;
-            }
+            CancelOngoingReconnect();
 
-            _reconnectTokenSource = new CancellationTokenSource();
-            Task.Delay(_reconnectDelay, _reconnectTokenSource.Token).ContinueWith(async _ => await Reconnect());
+            _reconnectCancellationTokenSource = new CancellationTokenSource();
+            Task.Delay(_reconnectDelay, _reconnectCancellationTokenSource.Token).ContinueWith(async _ => await Reconnect());
         }
 
         private async Task Reconnect()
@@ -630,6 +611,13 @@ namespace ResgateIO.Client
         private void OnCacheResourceEvent(object sender, ResourceEventArgs ev)
         {
             ResourceEvent?.Invoke(this, ev);
+        }
+
+        private void CancelOngoingReconnect()
+        {
+            _reconnectCancellationTokenSource?.Cancel();
+            _reconnectCancellationTokenSource?.Dispose();
+            _reconnectCancellationTokenSource = null;
         }
 
         protected virtual void Dispose(bool disposing)
