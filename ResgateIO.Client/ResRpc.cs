@@ -16,11 +16,11 @@ namespace ResgateIO.Client
 
         private readonly object _requestLock = new object();
         private readonly JsonSerializerSettings _serializerSettings;
-        private readonly IWebSocket _webSocket;
 
+        private IWebSocket _webSocket;
         private int _requestId = 1;
         private Dictionary<int, RpcRequest> _requests = new Dictionary<int, RpcRequest>();
-        private bool _disposedValue;
+        private bool _isDisposed;
 
         public ResRpc(IWebSocket webSocket, JsonSerializerSettings serializerSettings)
         {
@@ -177,34 +177,37 @@ namespace ResgateIO.Client
             return _webSocket.DisconnectAsync();
         }
 
-        protected virtual void Dispose(bool disposing)
-        {
-            if (_disposedValue)
-                return;
-
-            if (disposing)
-            {
-                // Call all pending requests with a connection closed error.
-                Dictionary<int, RpcRequest> pendingRequests;
-                lock (_requestLock)
-                {
-                    pendingRequests = _requests;
-                    _requests = null;
-                }
-                foreach (var req in pendingRequests)
-                {
-                    Task.Run(() => req.Value.Callback(null, new ResError(ResError.CodeConnectionError, "Connection closed")));
-                }
-
-                _webSocket.Dispose();
-            }
-            _disposedValue = true;
-        }
-
         public void Dispose()
         {
-            Dispose(disposing: true);
-            GC.SuppressFinalize(this);
+            if (_isDisposed)
+                return;
+
+            AbortPendingRequests();
+
+            _webSocket?.Dispose();
+            _webSocket = null;
+
+            ResourceEvent = null;
+            Error = null;
+
+            _isDisposed = true;
+        }
+
+        private void AbortPendingRequests()
+        {
+            Dictionary<int, RpcRequest> pendingRequests;
+            lock (_requestLock)
+            {
+                pendingRequests = _requests;
+                _requests = null;
+            }
+
+            foreach (var req in pendingRequests)
+            {
+                Task.Run(() => req.Value.Callback(
+                    null,
+                    new ResError(ResError.CodeConnectionError, "Connection closed")));
+            }
         }
     }
 }

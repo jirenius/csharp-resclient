@@ -55,26 +55,19 @@ namespace ResgateIO.Client
 
         public async Task DisconnectAsync()
         {
-            if (_webSocket == null)
+            if (_webSocket?.State != WebSocketState.Open)
                 return;
 
-            if (_webSocket.State == WebSocketState.Open)
-            {
-                _cancellationTokenSource.CancelAfter(TimeSpan.FromSeconds(2));
-                await _webSocket.CloseAsync(
-                    WebSocketCloseStatus.NormalClosure,
-                    string.Empty,
-                    CancellationToken.None);
+            _cancellationTokenSource.CancelAfter(TimeSpan.FromSeconds(2));
 
-                ConnectionStatusChanged?.Invoke(
-                    this,
-                    new ConnectionStatusEventArgs(ConnectionStatus.DisconnectedGracefully));
-            }
+            await _webSocket.CloseAsync(
+                WebSocketCloseStatus.NormalClosure,
+                "Closing connection",
+                CancellationToken.None);
 
-            _webSocket.Dispose();
-            _webSocket = null;
-            _cancellationTokenSource?.Dispose();
-            _cancellationTokenSource = null;
+            ConnectionStatusChanged?.Invoke(
+                this,
+                new ConnectionStatusEventArgs(ConnectionStatus.DisconnectedGracefully));
         }
 
         public async Task SendAsync(byte[] data)
@@ -116,23 +109,27 @@ namespace ResgateIO.Client
 
                             if (receiveResult.MessageType != WebSocketMessageType.Close)
                                 inputStream.Write(buffer, 0, receiveResult.Count);
+
                         } while (!receiveResult.EndOfMessage);
 
                         if (receiveResult.MessageType == WebSocketMessageType.Close)
-                        {
                             break;
-                        }
 
                         OnMessageReceived(inputStream.ToArray());
                     }
                 }
             }
-            catch (TaskCanceledException) { }
-            finally
+            catch (TaskCanceledException)
+            {
+                // Ignored
+            }
+            catch
             {
                 ConnectionStatusChanged?.Invoke(
                     this,
                     new ConnectionStatusEventArgs(ConnectionStatus.DisconnectedWithError));
+
+                throw;
             }
         }
 
@@ -143,37 +140,15 @@ namespace ResgateIO.Client
 
         public void Dispose()
         {
-            if (_webSocket == null)
-                return;
+            DisconnectAsync().GetAwaiter().GetResult();
 
-            if (_webSocket.State == WebSocketState.Open)
-            {
-                _cancellationTokenSource.CancelAfter(TimeSpan.FromSeconds(2));
-                _webSocket.CloseAsync(
-                    WebSocketCloseStatus.NormalClosure,
-                    string.Empty,
-                    CancellationToken.None);
-            }
+            _webSocket?.Dispose();
+            _webSocket = null;
+            _cancellationTokenSource?.Dispose();
+            _cancellationTokenSource = null;
 
-            try
-            {
-                _webSocket?.Dispose();
-                _webSocket = null;
-            }
-            catch
-            {
-                // ignored
-            }
-
-            try
-            {
-                _cancellationTokenSource?.Dispose();
-                _cancellationTokenSource = null;
-            }
-            catch
-            {
-                // Ignore
-            }
+            MessageReceived = null;
+            ConnectionStatusChanged = null;
         }
     }
 }

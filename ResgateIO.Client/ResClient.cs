@@ -1,4 +1,11 @@
-﻿namespace ResgateIO.Client
+﻿using System;
+using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+
+namespace ResgateIO.Client
 {
     public class ResClient : IResClient
     {
@@ -28,7 +35,7 @@
         private int _protocol;
         private bool _isOnline;
         private bool _tryReconnect;
-        private bool _disposedValue;
+        private bool _isDisposed;
         private ItemCache _cache;
 
         /// <summary>
@@ -620,22 +627,18 @@
             _reconnectCancellationTokenSource = null;
         }
 
-        protected virtual void Dispose(bool disposing)
-        {
-            if (!_disposedValue)
-            {
-                if (disposing)
-                {
-                    _rpc?.Dispose();
-                }
-                _disposedValue = true;
-            }
-        }
-
         public void Dispose()
         {
-            Dispose(disposing: true);
-            GC.SuppressFinalize(this);
+            if (_isDisposed)
+                return;
+
+            DisposeRpc();
+
+            ResourceEvent = null;
+            Error = null;
+            ConnectionStatusChanged = null;
+
+            _isDisposed = true;
         }
     }
 }
